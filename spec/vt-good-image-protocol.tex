@@ -1,0 +1,146 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+
+\usepackage{colortbl}
+\usepackage{epigraph}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{hhline}
+
+\usepackage{xcolor}
+\definecolor{light-gray}{gray}{0.95}
+
+\title{VT Good Image Protocol \\
+a standardization proposal}
+\author{Christian Parpart}
+\date{2020-08-16 (draft, revision 0)}
+
+\newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
+
+\newcommand{\DECRQM}[1]{\code{CSI ? #1 \$ p}}
+\newcommand{\DECSET}[1]{\code{CSI ? #1 h}}
+\newcommand{\DECRST}[1]{\code{CSI ? #1 l}}
+
+\newcommand{\DA}{\code{DA}}                          % DA
+
+\newcommand\VtModeNum{2027}                          % Grapheme cluster mode Id
+\newcommand{\GCON}{\DECSET{\VtModeNum{}}}            % DECSM for enabling grapheme cluster processing
+\newcommand{\GCOFF}{\DECRST{\VtModeNum{}}}           % DECRM for disabling grapheme cluster processing
+\newcommand{\GCTEST}{\DECRQM{\VtModeNum{}}} % DECRQM for requesting current grapheme cluster processing mode
+
+\newcommand{\GoodImageProtocol}{\code{Good Image Protocol}}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\section{History and current state}
+
+TBD.
+
+\begin{itemize}
+    \item DEC REGIS graphics (implemented by xterm)
+    \item Sixel graphics (implemented by xterm)
+    \item Kitty propriaty (implemented by kitty)
+    \item iTerm image protocol (implemented by iTerm, wezterm)
+    \item Terminology image protocol (implemented by Terminology)
+\end{itemize}
+
+\section{Backwards Compatibility}
+
+Since all other image protocols are pixel based, this image protocol does not retain any
+backwards compatibility nor attempts to do that. Instead, the goal is to create
+an image protocol that is future proof with todays needs in mind.
+
+\section{Future Compatibility and Stability}
+
+In order to leave room for improvements, the actual VT sequences should be designed in a way
+that they allow specifying additional parameters in the future, and that older implementations
+can still work with safely ignoring any new parameters.
+
+\section{Requirements}
+
+\begin{itemize}
+    \item Headless, multi-headed
+    \item Deterministic emulation
+    \item Grid cells as the only size unit
+    \item Synchronous operations only (no asynchronous operations)
+    \item Aspect ratio must be kept by default (support customization though)
+    \item Image upload can be decoupled from image display
+    \item Cell-based masking on display
+    \item Future-reusability of uploaded images for other uses should be possible (such as
+        icon-display, desktop-notifications, background images)
+\end{itemize}
+
+\section{Feature Detection}
+
+\DA is already used to advertise terminal features, such as sixel, and thus, could be used
+to also advertise for the \GoodImageProtocol.
+
+There is some feature detection specification work ongoing, so there may be other ways to detect
+\GoodImageProtocol in the future, too.
+
+\section{Performance Considerations}
+
+TBD.
+
+\section{Semantics}
+
+\subsection{Upload Image}
+
+Uploads an image for future render operations.
+
+\begin{itemize}
+    \item format; supported: PNG, JPG, BMP
+    \item data; image data in the given input format
+    \item tag; an uniquily identifiable name in Java-style reverse dot notation, such as
+        \code{org.binutils.ls} for the standard \code{ls} executable from the \code{binutils} package.
+\end{itemize}
+
+\subsection{Render Image}
+
+Renders an image that has either been previously uploaded already and thus is being referenced
+with a unique Id, or with the image data provided inline.
+
+Providing an upload Id along with inline image data is invalid.
+
+\begin{itemize}
+    \item Id; optionally referencing a previously uploaded image
+    \item x-offset; start render at given x-offset cell of the image
+    \item y-offset; start render at given y-offset cell of the image
+    \item data; image data if no Id was specified
+    \item format; image format if no Id was specified
+    \item top; optionally specify top of the rendered target image
+    \item left; optionally specify left-side of the rendered target image
+    \item width; number of grid cells to render horizontally
+    \item height; number of grid cells to render vertically
+    \item mask; optional, a boolean stream indicating which grid cells to render to
+    \item status: optional, request a success/failure status response from the terminal, by default
+        no status result will be sent back to the client application.
+\end{itemize}
+
+\subsection{Release Image}
+
+Dereferences the use-cound of a previously uploaded image.
+
+\section{Syntax}
+
+\subsection{Feature Detection}
+
+\subsection{Upload Image}
+
+\subsection{Render Image}
+
+\subsection{Release Image}
+
+\section{References}
+
+\begin{itemize}
+    \item https://invisible-island.net/xterm/ctlseqs/ctlseqs.txt
+    \item TODO: links to the other image protocols
+\end{itemize}
+
+\end{document}
