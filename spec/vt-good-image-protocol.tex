@@ -3,18 +3,22 @@
 \usepackage[english]{babel}
 
 \usepackage{colortbl}
-\usepackage{epigraph}
 \usepackage{fancyhdr}
 \usepackage{graphicx}
 \usepackage{hhline}
+\usepackage{todonotes}
+\usepackage{hyperref}
 
 \usepackage{xcolor}
 \definecolor{light-gray}{gray}{0.95}
 
+\usepackage{geometry}
+\geometry{legalpaper, margin=1in}
+
 \title{VT Good Image Protocol \\
 a standardization proposal}
 \author{Christian Parpart}
-\date{2020-08-16 (draft, revision 0)}
+\date{2020-11-25 (draft, revision 0)}
 
 \newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
 
@@ -24,10 +28,10 @@ a standardization proposal}
 
 \newcommand{\DA}{\code{DA}}                          % DA
 
-\newcommand\VtModeNum{2027}                          % Grapheme cluster mode Id
-\newcommand{\GCON}{\DECSET{\VtModeNum{}}}            % DECSM for enabling grapheme cluster processing
-\newcommand{\GCOFF}{\DECRST{\VtModeNum{}}}           % DECRM for disabling grapheme cluster processing
-\newcommand{\GCTEST}{\DECRQM{\VtModeNum{}}} % DECRQM for requesting current grapheme cluster processing mode
+% \newcommand\VtModeNum{2027}                          % Grapheme cluster mode Id
+% \newcommand{\GCON}{\DECSET{\VtModeNum{}}}            % DECSM for enabling grapheme cluster processing
+% \newcommand{\GCOFF}{\DECRST{\VtModeNum{}}}           % DECRM for disabling grapheme cluster processing
+% \newcommand{\GCTEST}{\DECRQM{\VtModeNum{}}} % DECRQM for requesting current grapheme cluster processing mode
 
 \newcommand{\GoodImageProtocol}{\code{Good Image Protocol}}
 
@@ -37,68 +41,139 @@ a standardization proposal}
 
 \tableofcontents
 
-\section{History and current state}
+%\newpage
 
-TBD.
+\section{Motivation} % {{{
+
+For many decades Sixel and ReGIS have been the only image protocols for decades. While both are
+ancient and not even widely implemented, newer generations of people seem to be used to see images
+and even emojis everywhere. Those people may eventually touch a virtual terminal emulator
+and expect to be it no different than what they were used to by other software systems.
+
+There is a rise of interest in both of these fields, and thus, many virtual terminal emulator
+developers, 30 to 40 years later, have started implementing their own propriaty protocols
+for displaying images as Sixel was purely not state of the art anymore.
+
+This is good and bad. Because application developers do not know what to support now in case they
+intend display images. This specification attempts to unify all those image protocols - not
+as a superset, but rather as a largest common denominator of all, with implementation adaptability
+on both ends in mind, terminal and application side.
+
+% }}}
+\section{Prior art and current state} % {{{
+
+Prior art of image protocols for the terminal are the following:
 
 \begin{itemize}
+    \item Sixel graphics (implemented by: xterm, mlterm, wezterm, contour, VTE)
     \item DEC REGIS graphics (implemented by xterm)
-    \item Sixel graphics (implemented by xterm)
-    \item Kitty propriaty (implemented by kitty)
-    \item iTerm image protocol (implemented by iTerm, wezterm)
+    \item iTerm2 image protocol (implemented by iTerm2, wezterm)
     \item Terminology image protocol (implemented by Terminology)
+    \item Kitty propriaty (implemented by kitty)
 \end{itemize}
 
-\section{Backwards Compatibility}
+\todo{describe each protocols pros/cons shortly}
+
+% }}}
+\section{Backwards Compatibility} % {{{
 
 Since all other image protocols are pixel based, this image protocol does not retain any
 backwards compatibility nor attempts to do that. Instead, the goal is to create
 an image protocol that is future proof with todays needs in mind.
 
-\section{Future Compatibility and Stability}
+% }}}
+\section{Future Compatibility and Stability} % {{{
 
 In order to leave room for improvements, the actual VT sequences should be designed in a way
 that they allow specifying additional parameters in the future, and that older implementations
 can still work with safely ignoring any new parameters.
 
-\section{Requirements}
+% }}}
+\section{Requirements} % {{{
 
-\begin{itemize}
-    \item Headless, multi-headed
-    \item Deterministic emulation
-    \item Grid cells as the only size unit
-    \item Synchronous operations only (no asynchronous operations)
+\begin{enumerate}
+    \item Headless, multi-headed.
+    \item Deterministic emulation.
+    \item Grid cells as the only unit size except for the actual image to be uploaded
+    \item Remote-terminal capable (no dependency on the local host, such as the local file system)
+    \item Synchronous operations only (no asynchronous operations unless explicitly requested)
     \item Aspect ratio must be kept by default (support customization though)
-    \item Image upload can be decoupled from image display
-    \item Cell-based masking on display
+    \item Image upload is decoupled from image display
+    \item Cell-based masking on display or at the ability to render sub-rectangles of the uploaded image
     \item Future-reusability of uploaded images for other uses should be possible (such as
         icon-display, desktop-notifications, background images)
-\end{itemize}
+\end{enumerate}
 
-\section{Feature Detection}
-
-\DA is already used to advertise terminal features, such as sixel, and thus, could be used
-to also advertise for the \GoodImageProtocol.
-
-There is some feature detection specification work ongoing, so there may be other ways to detect
-\GoodImageProtocol in the future, too.
-
-\section{Performance Considerations}
+\begin{enumerate}
+    \item at least 16 images displayable concurrently
+    \item at least 4 MB per image uncompressed
+    \item at least 64 MB per storage pool (4*16)
+    \item upper limits must be present but can be varying by implementation
+\end{enumerate}
+% }}}
+\section{Performance Considerations} % {{{
 
 TBD.
 
-\section{Semantics}
+% }}}
+\section{Security Considerations} % {{{
+
+\begin{itemize}
+    \item image upload spamming
+    \item huge image Uploads
+    \item invalid image Uploads
+    \item invalid image render requests (such as out of bounds in offsetted-renders)
+\end{itemize}
+
+% }}}
+\section{Semantics} % {{{
 
 \subsection{Upload Image}
 
 Uploads an image for future render operations.
 
 \begin{itemize}
-    \item format; supported: PNG, JPG, BMP
+    \item format; an unique ID that identifies an image format. See section \ref{sec:supported-image-formtats}
     \item data; image data in the given input format
-    \item tag; an uniquily identifiable name in Java-style reverse dot notation, such as
-        \code{org.binutils.ls} for the standard \code{ls} executable from the \code{binutils} package.
+    \item Id; an uniquily identifiable identifier
+        % name in Java-style reverse dot notation,
+        % such as \code{org.binutils.ls} for the standard \code{ls} executable
+        % from the \code{binutils} package.
 \end{itemize}
+
+\subsubsection{Idempotency}
+
+Image upload can be implemented idempotent, i.e. the storage pool keeps an internal hash
+of each image that is automatically constructed upon image upload.
+If the image was already uploaded, that image's reference count is incremented instead
+and in case of a named resource, that one will point to that existing one.
+
+\subsubsection{Storage Management}
+
+Uploaded images are reference counted. Uploading a named image will initialize its reference count to 1.
+
+When uploading an image beyond the above storage pool guarantees,
+the host may choose at actively evict older images in either priority:
+
+\begin{enumerate}
+    \item oldest first, or
+    \item least reference counted (in visible area) first.
+\end{enumerate}
+
+Evicted images that where still held in grid cells may display unicode object replacement
+codepoint (U+FFFC) or an empty cell.
+
+Displaying an image results in incrementing the reference count by the number of grid cells
+that are holding parts of the image.
+
+Clearing a grid cell holding an image fragment (e.g. by overwriting or deleting its contents)
+will decrement the image reference count.
+
+When no grid cell is holding a reference to the underlying image,
+the corresponding reference count should be either 1 (if uploaded in a separate step)
+or 0 (if uploaded within the render instruction).
+
+Releasing the image by Id will simply decrement is reference count.
 
 \subsection{Render Image}
 
@@ -108,39 +183,152 @@ with a unique Id, or with the image data provided inline.
 Providing an upload Id along with inline image data is invalid.
 
 \begin{itemize}
-    \item Id; optionally referencing a previously uploaded image
-    \item x-offset; start render at given x-offset cell of the image
-    \item y-offset; start render at given y-offset cell of the image
-    \item data; image data if no Id was specified
-    \item format; image format if no Id was specified
-    \item top; optionally specify top of the rendered target image
-    \item left; optionally specify left-side of the rendered target image
-    \item width; number of grid cells to render horizontally
-    \item height; number of grid cells to render vertically
-    \item mask; optional, a boolean stream indicating which grid cells to render to
-    \item status: optional, request a success/failure status response from the terminal, by default
-        no status result will be sent back to the client application.
+    \item Id; unique identifier referencing a previously uploaded image
+    \item image-x-offset; start render at given pixel x-offset cell of the image
+    \item image-y-offset; start render at given pixel y-offset cell of the image
+    \item image-width; optional, number of pixels of the image's width to display
+    \item image-height; optional, number of pixels of the image's height to display
+    \item grid-width; number of grid cells to render horizontally
+    \item grid-height; number of grid cells to render vertically
+    \item resizePolicy; mandates how to resize the image within the
+    \item alignmentPolicy; mandates how to align the image within the grid cells
+    % \item status: optional, request a success/failure status response from the terminal, by default
+    %     no status result will be sent back to the client application.
 \end{itemize}
+
+\subsection{Upload and Render Image}
+
+An image can be uploaded and rendered within a single instruction.
+The image is being released automatically right after and therefore cannot be referenced after
+again.
+
+The parameters of this function is the sum of image upload and image render minus the unique
+identifier.
 
 \subsection{Release Image}
 
-Dereferences the use-cound of a previously uploaded image.
+Dereferences the use-count of a previously uploaded image.
 
-\section{Syntax}
+\begin{itemize}
+    \item Id; Unique identifier referencing a previously uploaded image.
+\end{itemize}
 
 \subsection{Feature Detection}
 
+\DA is already used to advertise terminal features, including sixel graphics, and thus,
+could be used to also advertise for the \GoodImageProtocol.
+
+There is some improved feature detection specification work ongoing,
+so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
+
+\subsection{Interoperability with other VT sequences}
+
+\subsubsection*{Clearing the grid}
+
+VT sequences (such as \code{CSI Ps J}) that reset the textual contents of the grid cells will also
+clear their image fragment referencing an underlying image, possibly also releasing the
+underlying image(s) from the image storage pool when their reference count goes to zero.
+
+\subsubsection*{Primary and alt screen}
+
+Alt screen and primary screen maintain both their own image storage pool.
+
+When leaving the alt screen, its image storage pool gets cleared.
+% }}}
+\section{Syntax} % {{{
+
+This section maps each semantic action to actual VT sequences.
+
 \subsection{Upload Image}
+
+Syntax: \code{DCS id:ID ; fmt:ID ; u payload ST}
+
+\begin{tabular}{ |c|c|l| }
+    \hline
+    parameter   & Key & Value \\
+    \hline
+    Id          & 1   & UInt32 \\
+    fmt         & 2   & UInt32 \\
+    \hline
+\end{tabular}
 
 \subsection{Render Image}
 
+Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignment:ALIGNMENT r ST}
+
+\begin{tabular}{ |c|c|l| }
+    \hline
+    parameter   & Key & Value \\
+    \hline
+    Id          & 1   & UInt32 \\
+    x           & 2   & UInt32 \\
+    y           & 2   & UInt32 \\
+    width       & 3   & UInt32 \\
+    height      & 4   & UInt32 \\
+    resize      & 5   & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
+    alignment   & 6   & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
+                &     & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
+                &     & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    \hline
+\end{tabular}
+
+\subsection{Upload and Render Image}
+
+Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignment:ALIGNMENT s payload ST}
+
 \subsection{Release Image}
 
-\section{References}
+Syntax: \code{DCS id:ID d ST}
 
-\begin{itemize}
-    \item https://invisible-island.net/xterm/ctlseqs/ctlseqs.txt
-    \item TODO: links to the other image protocols
-\end{itemize}
+\begin{tabular}{ |c|c|l| }
+    \hline
+    parameter   & Key & Value \\
+    \hline
+    Id          & 1   & UInt32 \\
+    \hline
+\end{tabular}
+
+\subsection{Feature Detection}
+
+Syntax: \DA
+
+\DA's response code for detecting support for an implementation of this specification is 11
+
+% }}}
+\section{Support Image Formats} % {{{
+
+\label{sec:supported-image-formtats}
+
+\begin{tabular}{c | c | l}
+    File Format & Identifier & Description \\ \hline
+    RGB & 1 & raw RGB data with each color component being of size 1 byte. \\
+    RGBA & 2 & raw RGBA data, just like RGB, but with an alpha channel. \\
+    PNG & 3 & PNG file format \\
+\end{tabular}
+
+\paragraph{}
+
+For file formats RGB and RGBA, the image dimensions needs to be prepended to the image
+before sending the payload. Since both file formats are binary, the format for this trivial header
+is simply with and height as 32-bit unsigned integer (little endian).
+
+% }}}
+\section{References} % {{{
+
+\begin{enumerate}
+    \item \label{ref:ctlseqs}https://invisible-island.net/xterm/ctlseqs/ctlseqs.txt
+    \item \label{ref:simple-image-display}Simple Image display, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/12
+    \item \label{ref:gip}Good Image Protocol, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/26
+    \item \label{ref:image-sixel}Sixel Image Protocol, https://vt100.net/docs/vt3xx-gp/chapter14.html
+    \item \label{ref:image-item2}iTerm2's image protocol, https://iterm2.com/documentation-images.html
+    \item \label{ref:image-terminology}Terminology's image protocol, https://www.enlightenment.org/docs/apps/terminology.md \todo{Terminology image protocol spec not found. ;-(}
+    \item \label{ref:image-kitty}Kitty's image protocol, https://sw.kovidgoyal.net/kitty/graphics-protocol.html
+\end{enumerate}
+% }}}
+
+\section{Editorial Notes}
+\listoftodos
 
 \end{document}
+
+% vim:ts=2:sw=2

@@ -3,3 +3,10 @@
 *.log
 *.toc
 *.pdf
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+.fake
+.ionide
+/out

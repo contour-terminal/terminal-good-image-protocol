@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - wip
+      - master
+      - preview
+      - release
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  compile_pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: "install dependencies"
+        run: |
+          set -ex
+          sudo apt -q update
+          sudo apt install -y texlive-latex-base texlive-latex-extra
+      - name: "Compile PDF"
+        run: |
+          set -ex
+          cd spec
+          pdflatex vt-good-image-protocol.tex
+          pdflatex vt-good-image-protocol.tex # second run
+      - name: "Uploading PDF"
+        uses: actions/upload-artifact@v2
+        with:
+          name: my-artifact
+          path: spec/vt-good-image-protocol.pdf
+          if-no-files-found: error
+
+  compile_md:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: "install dependencies"
+        run: |
+          set -ex
+          sudo apt -q update
+          sudo apt install -y pandoc
+      - name: "Compile markdown"
+        run: |
+          set -ex
+          cd spec
+          pandoc -s vt-good-image-protocol.tex -o vt-good-image-protocol.md
+      - name: "Uploading markdown"
+        uses: actions/upload-artifact@v2
+        with:
+          name: my-artifact
+          path: spec/vt-good-image-protocol.md
+          if-no-files-found: error
