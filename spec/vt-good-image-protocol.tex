@@ -255,6 +255,9 @@ Syntax: \code{DCS id:ID ; fmt:ID ; u payload ST}
     \hline
 \end{tabular}
 
+The payload's format is mandated by the \verbatim{fmt}'s value. However, since it must not contain
+any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
+
 \subsection{Render Image}
 
 Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignment:ALIGNMENT r ST}
@@ -308,12 +311,6 @@ Syntax: \DA
     RGBA & 2 & raw RGBA data, just like RGB, but with an alpha channel. \\
     PNG & 3 & PNG file format \\
 \end{tabular}
-
-\paragraph{}
-
-For file formats RGB and RGBA, the image dimensions needs to be prepended to the image
-before sending the payload. Since both file formats are binary, the format for this trivial header
-is simply with and height as 32-bit unsigned integer (little endian).
 
 % }}}
 \section{References} % {{{
