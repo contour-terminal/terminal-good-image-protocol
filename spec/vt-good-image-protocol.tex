@@ -3,11 +3,11 @@
 \usepackage[english]{babel}
 
 \usepackage{colortbl}
-\usepackage{fancyhdr}
-\usepackage{graphicx}
-\usepackage{hhline}
-\usepackage{todonotes}
 \usepackage{hyperref}
+\usepackage{todonotes}
+
+% \usepackage{fancyhdr}
+% \usepackage{graphicx}
 
 \usepackage{xcolor}
 \definecolor{light-gray}{gray}{0.95}
@@ -18,20 +18,14 @@
 \title{VT Good Image Protocol \\
 a standardization proposal}
 \author{Christian Parpart}
-\date{2020-11-25 (draft, revision 0)}
+\date{2020-12-13 (draft, revision 0)}
 
 \newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
 
+\newcommand{\DA}{\code{DA}}
 \newcommand{\DECRQM}[1]{\code{CSI ? #1 \$ p}}
-\newcommand{\DECSET}[1]{\code{CSI ? #1 h}}
 \newcommand{\DECRST}[1]{\code{CSI ? #1 l}}
-
-\newcommand{\DA}{\code{DA}}                          % DA
-
-% \newcommand\VtModeNum{2027}                          % Grapheme cluster mode Id
-% \newcommand{\GCON}{\DECSET{\VtModeNum{}}}            % DECSM for enabling grapheme cluster processing
-% \newcommand{\GCOFF}{\DECRST{\VtModeNum{}}}           % DECRM for disabling grapheme cluster processing
-% \newcommand{\GCTEST}{\DECRQM{\VtModeNum{}}} % DECRQM for requesting current grapheme cluster processing mode
+\newcommand{\DECSET}[1]{\code{CSI ? #1 h}}
 
 \newcommand{\GoodImageProtocol}{\code{Good Image Protocol}}
 
@@ -60,6 +54,21 @@ as a superset, but rather as a largest common denominator of all, with implement
 on both ends in mind, terminal and application side.
 
 % }}}
+\section{Requirements} % {{{
+
+\begin{enumerate}
+    \item Headless, multi-headed.
+    \item Deterministic emulation.
+    \item Grid cells as the only unit size except for the actual image to be uploaded
+    \item Remote-terminal capable (no dependency on the local host, such as the local file system)
+    \item Synchronous operations only (no asynchronous operations unless explicitly requested)
+    \item Aspect ratio must be kept by default (support customization though)
+    \item Image upload is decoupled from image display
+    \item Cell-based masking on display or at the ability to render sub-rectangles of the uploaded image
+    \item Future-reusability of uploaded images for other uses should be possible (such as
+        icon-display, desktop-notifications, background images)
+\end{enumerate}
+% }}}
 \section{Prior art and current state} % {{{
 
 Prior art of image protocols for the terminal are the following:
@@ -69,7 +78,7 @@ Prior art of image protocols for the terminal are the following:
     \item DEC REGIS graphics (implemented by xterm)
     \item iTerm2 image protocol (implemented by iTerm2, wezterm)
     \item Terminology image protocol (implemented by Terminology)
-    \item Kitty propriaty (implemented by kitty)
+    \item Kitty image protocol (implemented by kitty)
 \end{itemize}
 
 \todo{describe each protocols pros/cons shortly}
@@ -89,27 +98,20 @@ that they allow specifying additional parameters in the future, and that older i
 can still work with safely ignoring any new parameters.
 
 % }}}
-\section{Requirements} % {{{
+\section{Terminal Emulator Requirements} % {{{
+
+This is the list of resource requirements that must be guaranteed by the virtual terminal emulator.
 
 \begin{enumerate}
-    \item Headless, multi-headed.
-    \item Deterministic emulation.
-    \item Grid cells as the only unit size except for the actual image to be uploaded
-    \item Remote-terminal capable (no dependency on the local host, such as the local file system)
-    \item Synchronous operations only (no asynchronous operations unless explicitly requested)
-    \item Aspect ratio must be kept by default (support customization though)
-    \item Image upload is decoupled from image display
-    \item Cell-based masking on display or at the ability to render sub-rectangles of the uploaded image
-    \item Future-reusability of uploaded images for other uses should be possible (such as
-        icon-display, desktop-notifications, background images)
-\end{enumerate}
-
-\begin{enumerate}
-    \item at least 16 images displayable concurrently
+    \item at least 32 images displayable concurrently
     \item at least 4 MB per image uncompressed
-    \item at least 64 MB per storage pool (4*16)
-    \item upper limits must be present but can be varying by implementation
+    \item at least 128 MB per storage pool (\(4 * 32\))
 \end{enumerate}
+
+Upper limits must be present for security reasons but can be varying by implementation.
+
+\todo{Have the ability to query resource limits?}
+
 % }}}
 \section{Performance Considerations} % {{{
 
@@ -133,12 +135,11 @@ TBD.
 Uploads an image for future render operations.
 
 \begin{itemize}
+    \item Id; a unique Id identifying the uploaded image
     \item format; an unique ID that identifies an image format. See section \ref{sec:supported-image-formtats}
     \item data; image data in the given input format
-    \item Id; an uniquily identifiable identifier
-        % name in Java-style reverse dot notation,
-        % such as \code{org.binutils.ls} for the standard \code{ls} executable
-        % from the \code{binutils} package.
+    \item width; optional pixel width of the given image (only required for RGB/RGBA format)
+    \item height; optional pixel height of the given image (only required for RGB/RGBA format)
 \end{itemize}
 
 \subsubsection{Idempotency}
@@ -184,14 +185,14 @@ Providing an upload Id along with inline image data is invalid.
 
 \begin{itemize}
     \item Id; unique identifier referencing a previously uploaded image
-    \item image-x-offset; start render at given pixel x-offset cell of the image
-    \item image-y-offset; start render at given pixel y-offset cell of the image
-    \item image-width; optional, number of pixels of the image's width to display
-    \item image-height; optional, number of pixels of the image's height to display
     \item grid-width; number of grid cells to render horizontally
     \item grid-height; number of grid cells to render vertically
-    \item resizePolicy; mandates how to resize the image within the
-    \item alignmentPolicy; mandates how to align the image within the grid cells
+    \item resizePolicy; optional, mandates how to resize the image within the (default NoResize)
+    \item alignmentPolicy; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
+    \item image-x-offset; optional, start render at given pixel x-offset cell of the image (default 0)
+    \item image-y-offset; optional, start render at given pixel y-offset cell of the image (default 0)
+    \item image-width; optional, number of pixels of the image's width to display (default: max width)
+    \item image-height; optional, number of pixels of the image's height to display (default max height)
     % \item status: optional, request a success/failure status response from the terminal, by default
     %     no status result will be sent back to the client application.
 \end{itemize}
@@ -248,7 +249,9 @@ Syntax: \code{DCS id:ID ; fmt:ID ; u payload ST}
     parameter   & Key & Value \\
     \hline
     Id          & 1   & UInt32 \\
-    fmt         & 2   & UInt32 \\
+    fmt         & 2   & enum (see section \ref{sec:supported-image-formtats}) \\
+    width       & 3   & Uint32 \\
+    height      & 4   & Uint32 \\
     \hline
 \end{tabular}
 
