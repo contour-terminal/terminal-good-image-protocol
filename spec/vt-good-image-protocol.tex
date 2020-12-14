@@ -48,10 +48,10 @@ There is growing interest in both of these fields, and thus, many virtual termin
 developers, 30 to 40 years later, have started implementing their own proprietary protocols
 for displaying images as Sixel was simply not state of the art anymore.
 
-While this is positive, it also leads to fragmentation in the ecosystem because application 
+While this is positive, it also leads to fragmentation in the ecosystem because application
 developers do not know what to support in case they intend display images.
-This specification attempts to unify all those image protocols - not as a superset, but rather 
-as a largest common denominator, with implementation adaptability on both ends - terminal and 
+This specification attempts to unify all those image protocols - not as a superset, but rather
+as a largest common denominator, with implementation adaptability on both ends - terminal and
 application side.
 
 % }}}
@@ -65,29 +65,88 @@ application side.
     \item Synchronous operations only (no asynchronous operations unless explicitly requested)
     \item Aspect ratio must be kept by default (and support customization)
     \item Image upload must be decoupled from image display
-    \item Cell-based masking and the ability to render sub-rectangles of the uploaded image
+    \item Ability to render sub-rectangles of the uploaded image
     \item Future-reusability of uploaded images for other uses (such as
         icon-display, desktop-notifications, background images)
 \end{enumerate}
+
+\paragraph*{}
+
+The document at \ref{ref:twg-gip} suggests cell based masking for rendering to help rendering more
+complex scenes such as in windowed TUI applications or terminal multiplexers.
+However, the same can be achieved with a sequence of Image-Render commands specifying a
+sub-rectangle to be rendered of the referenced image.
+
 % }}}
 \section{Prior art and current state} % {{{
 
 Prior art of image protocols for terminals are as follows:
 
+\subsection{DEC ReGIS graphics}
+
 \begin{itemize}
-    \item Sixel graphics (implemented by: xterm, mlterm, wezterm, contour, VTE)
-    \item DEC REGIS graphics (implemented by xterm)
-    \item iTerm2 image protocol (implemented by iTerm2, wezterm)
-    \item Terminology image protocol (implemented by Terminology)
-    \item Kitty image protocol (implemented by kitty)
+    \item First appeared in 1981
+    \item vector graphics based
+    \item implemented by: xterm
 \end{itemize}
 
-\todo{describe each protocols pros/cons shortly}
+\subsection{Sixel graphics}
+
+\begin{itemize}
+    \item Sixel grpahics first appeared in VT330/VT340 specifications that seems to be published in 1988.
+    \item It is pixel based and positions the graphics cursor in a way it is most optimal for dot printers,
+        that could print 6 pixels in height per line.
+    \item Specialized image format optimized for 6-pin printers.
+    \item implemented by: xterm, mlterm, wezterm, contour, VTE
+\end{itemize}
+
+\subsection{iTerm2 image protocol}
+
+\begin{itemize}
+    \item Can associate a file name (Base64 encoded) to the rendered image.
+    \item Image display size can be pixel based as well as cell based.
+    \item Also has the ability to address the with and hight relative to the terminal window size.
+    \item Image data is Base64 encoded.
+\end{itemize}
+
+\todo{When was iTerm2 image protocol first introduced?}
+\todo{iTerm2 supported image formats?}
+
+\subsection{Terminology image protocol}
+
+\begin{itemize}
+    \item First appeared in ... \todo{When did Terminology's image protocol first appear?}
+    \item Very hard to find anything out about the underlying transmission protocol.
+    \item Seems to be file based.
+    \item No specification available.
+\end{itemize}
+
+\subsection{Kitty image protocol}
+
+\begin{itemize}
+    \item First appeared in 2017
+    \item Seperates image upload from image display
+    \item Can mandate image sizes in pixels as well as in grid cell dimensions.
+    \item Images are rendered independantly of text with a specified Z-axis.
+    \item Images can be deleted without knowning their names but only by specifying X/Y/Z axis
+          and delete all images intersecting these criteria.
+    \item Image formats supported are: RGB, RGBA, PNG.
+    \item Image data is Base64 encoded.
+    \item Supports optionally compressing the image data.
+    \item Supports various image data transmission methods:
+        \begin{itemize}
+            \item inline, as part of the VT sequence
+            \item named shared memory
+            \item path to local files
+        \end{itemize}
+    \item Optionally deletes the local file when requested and the file path is in a secure location.
+    \item Hard coded image storage pool to 320 MB (per screen buffer).
+\end{itemize}
 
 % }}}
 \section{Backwards Compatibility} % {{{
 
-Since all other image protocols are pixel based, the proposed image protocol does not 
+Since all other image protocols are pixel based, the proposed image protocol does not
 attempt to retain any backwards compatibility. Instead, the goal is to create
 an image protocol that is future proof with todays needs in mind.
 
@@ -95,7 +154,7 @@ an image protocol that is future proof with todays needs in mind.
 \section{Future Compatibility and Stability} % {{{
 
 In order to leave room for improvements, the VT sequences should be designed in a way
-that allows specifying additional parameters in the future, and simultaneously ensures 
+that allows specifying additional parameters in the future, and simultaneously ensures
 that older implementations can still work while safely ignoring any new parameters.
 
 % }}}
@@ -112,7 +171,7 @@ This is the list of resource requirements that must be guaranteed by the virtual
 Upper limits must be present for security reasons but can be varying by implementation.
 
 \todo{Have the ability to query resource limits?}
-\todo{What should happen when the number of images an application wants 
+\todo{What should happen when the number of images an application wants
       to display is higher than the limit?}
 
 % }}}
@@ -320,8 +379,8 @@ Syntax: \DA
 
 \begin{enumerate}
     \item \label{ref:ctlseqs}https://invisible-island.net/xterm/ctlseqs/ctlseqs.txt
-    \item \label{ref:simple-image-display}Simple Image display, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/12
-    \item \label{ref:gip}Good Image Protocol, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/26
+    \item \label{ref:twg-simple-image-display}Simple Image display, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/12
+    \item \label{ref:twg-gip}Good Image Protocol, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/26
     \item \label{ref:image-sixel}Sixel Image Protocol, https://vt100.net/docs/vt3xx-gp/chapter14.html
     \item \label{ref:image-item2}iTerm2's image protocol, https://iterm2.com/documentation-images.html
     \item \label{ref:image-terminology}Terminology's image protocol, https://www.enlightenment.org/docs/apps/terminology.md \todo{Terminology image protocol spec not found. ;-(}
@@ -334,4 +393,4 @@ Syntax: \DA
 
 \end{document}
 
-% vim:ts=2:sw=2
+% vim:ts=4:sw=4
