@@ -61,31 +61,6 @@ as well as client side, yet allowing future extensions to this protocol
 without breaking compatibility to existing implementations.
 
 % }}}
-\section{Requirements} % {{{
-
-\begin{enumerate}
-    \item \textbf{Deterministic emulation} - The image rendering must not be affected by font size or similar properties.
-    \item \textbf{Synchronous operations by default} - No asynchronous operations unless explicitly requested.
-    \item \textbf{Remote-terminal capable} - No dependency on the local host, such as the local file system.
-    \item \textbf{Preserve aspect ratio by default}
-    \item \textbf{Upload and Render seperation} - Image upload must be decoupled from image display
-    \item \textbf{Support for rendering tiles of an image} - Adding the ability to only render tiles
-        of an image greatly assists client applications when only rendering parts of an image is
-        needed (such as in multiplexers).
-    \item \textbf{Protocol forward-compatibility} - the protocol must be easily extendable in input
-        parameters as well as reusability of the image storage pool
-        (such as icon-display, desktop-notifications, background images)
-    \item \textbf{Feature detectability} - The image protocl must be easily detectable by well known techniques.
-\end{enumerate}
-
-\paragraph*{}
-
-The document at [\ref{ref:twg-gip}] suggests cell based masking for rendering to help rendering more
-complex scenes such as in windowed TUI applications or terminal multiplexers.
-However, the same can be achieved with a sequence of Image-Render commands specifying a
-sub-rectangle to be rendered of the referenced image.
-
-% }}}
 \section{Prior art and current state} % {{{
 
 Prior art of image protocols for terminals are as follows:
@@ -151,6 +126,31 @@ Prior art of image protocols for terminals are as follows:
     \item Optionally deletes the local file when requested and the file path is in a secure location.
     \item Hard coded image storage pool to 320 MB (per screen buffer).
 \end{itemize}
+
+% }}}
+\section{Requirements} % {{{
+
+\begin{enumerate}
+    \item \textbf{Deterministic emulation} - The image rendering must not be affected by font size or similar properties.
+    \item \textbf{Synchronous operations by default} - No asynchronous operations unless explicitly requested.
+    \item \textbf{Remote-terminal capable} - No dependency on the local host, such as the local file system.
+    \item \textbf{Preserve aspect ratio by default}
+    \item \textbf{Upload and Render seperation} - Image upload must be decoupled from image display
+    \item \textbf{Support for rendering tiles of an image} - Adding the ability to only render tiles
+        of an image greatly assists client applications when only rendering parts of an image is
+        needed (such as in multiplexers).
+    \item \textbf{Protocol forward-compatibility} - the protocol must be easily extendable in input
+        parameters as well as reusability of the image storage pool
+        (such as icon-display, desktop-notifications, background images)
+    \item \textbf{Feature detectability} - The image protocl must be easily detectable by well known techniques.
+\end{enumerate}
+
+\paragraph*{}
+
+The document at [\ref{ref:twg-gip}] suggests cell based masking for rendering to help rendering more
+complex scenes such as in windowed TUI applications or terminal multiplexers with overlaying contents.
+However, the same can be achieved with a sequence of Image-Render commands specifying a
+sub-rectangle to be rendered of the referenced image.
 
 % }}}
 \section{Backwards Compatibility} % {{{
