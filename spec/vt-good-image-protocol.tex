@@ -266,9 +266,8 @@ Providing an upload Id along with inline image data is invalid.
 
 \subsection{Upload and Render Image}
 
-An image can be uploaded and rendered within a single instruction.
-The image is being released automatically right after and therefore cannot be referenced
-again.
+This uploads and renders the image via a single VT sequence. Therefore no image Id is required and
+there won't be any way to reference that image after either.
 
 The parameters of this function is the sum of the image upload and image render parameters excluding the unique
 identifier.
@@ -284,24 +283,24 @@ Dereferences the use-count of a previously uploaded image.
 \subsection{Feature Detection}
 
 \DA is already used to advertise terminal features, including sixel graphics, and thus,
-could be used to also advertise the availability of \GoodImageProtocol.
+it does make sense to be used to also advertise the availability of \GoodImageProtocol.
 
 There is some improved feature detection specification work ongoing,
 so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
 
 \subsection{Interoperability with other VT sequences}
 
-\subsubsection*{Clearing the grid}
+\subsubsection*{Clearing the screen}
 
-VT sequences (such as \code{CSI Ps J}) that reset the textual contents of the grid cells will also
+VT sequences (such as \code{CSI Ps J}) that reset at least the textual contents of the grid cells will also
 clear their image fragment referencing an underlying image, possibly also releasing the
-underlying image(s) from the image storage pool when their reference count goes to zero.
+underlying image(s) from the image storage pool when their reference count goes down to zero.
 
-\subsubsection*{Primary and alt screen}
+\subsubsection*{Primary and alternate screen}
 
-Alt screen and primary screen maintain both their own image storage pool.
+Alternate screen and primary screen maintain both their own image storage pool.
 
-When leaving the alt screen, its image storage pool gets cleared.
+When leaving the alternate screen, its image storage pool gets cleared too.
 % }}}
 \section{Syntax} % {{{
 
