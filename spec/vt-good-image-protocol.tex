@@ -39,20 +39,26 @@ a standardization proposal}
 
 \section{Motivation} % {{{
 
-For many decades Sixel and ReGIS have been the only image protocols for VTs. While both are
-ancient and not even widely implemented, newer generations of people are used to seeing images
-and even emojis everywhere. Those people may eventually touch a virtual terminal emulator
-and expect to be it no different than what they are used to in other software systems.
+For many decades Sixel and ReGIS have been the only image protocols for terminal emulators.
+While both are ancient and not even widely implemented, newer generations of people are used
+to seeing images and even emojis everywhere.
+Those people may eventually touch a virtual terminal emulator and expect to be it no different
+than what they are used to in other software systems.
 
 There is growing interest in both of these fields, and thus, many virtual terminal emulator
 developers, 30 to 40 years later, have started implementing their own proprietary protocols
 for displaying images as Sixel was simply not state of the art anymore.
 
 While this is positive, it also leads to fragmentation in the ecosystem because application
-developers do not know what to support in case they intend display images.
+developers do not know what to support in case they intend to display images.
 This specification attempts to unify all those image protocols - not as a superset, but rather
 as a largest common denominator, with implementation adaptability on both ends - terminal and
 application side.
+
+This image protocol specification aims to be future proof with regards to the young generation
+of terminal users, as well as simple enough to be widely accepted and adopted on the terminal side
+as well as client side, yet allowing future extensions to this protocol
+without breaking compatibility to existing implementations.
 
 % }}}
 \section{Requirements} % {{{
