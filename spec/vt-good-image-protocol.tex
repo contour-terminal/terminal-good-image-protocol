@@ -58,21 +58,23 @@ application side.
 \section{Requirements} % {{{
 
 \begin{enumerate}
-    \item Headless, multi-headed.
-    \item Deterministic emulation.
-    \item Grid cells as the only unit size except for the actual image to be uploaded
-    \item Remote-terminal capable (no dependency on the local host, such as the local file system)
-    \item Synchronous operations only (no asynchronous operations unless explicitly requested)
-    \item Aspect ratio must be kept by default (and support customization)
-    \item Image upload must be decoupled from image display
-    \item Ability to render sub-rectangles of the uploaded image
-    \item Future-reusability of uploaded images for other uses (such as
-        icon-display, desktop-notifications, background images)
+    \item \textbf{Deterministic emulation} - The image rendering must not be affected by font size or similar properties.
+    \item \textbf{Synchronous operations by default} - No asynchronous operations unless explicitly requested.
+    \item \textbf{Remote-terminal capable} - No dependency on the local host, such as the local file system.
+    \item \textbf{Preserve aspect ratio by default}
+    \item \textbf{Upload and Render seperation} - Image upload must be decoupled from image display
+    \item \textbf{Support for rendering tiles of an image} - Adding the ability to only render tiles
+        of an image greatly assists client applications when only rendering parts of an image is
+        needed (such as in multiplexers).
+    \item \textbf{Protocol forward-compatibility} - the protocol must be easily extendable in input
+        parameters as well as reusability of the image storage pool
+        (such as icon-display, desktop-notifications, background images)
+    \item \textbf{Feature detectability} - The image protocl must be easily detectable by well known techniques.
 \end{enumerate}
 
 \paragraph*{}
 
-The document at \ref{ref:twg-gip} suggests cell based masking for rendering to help rendering more
+The document at [\ref{ref:twg-gip}] suggests cell based masking for rendering to help rendering more
 complex scenes such as in windowed TUI applications or terminal multiplexers.
 However, the same can be achieved with a sequence of Image-Render commands specifying a
 sub-rectangle to be rendered of the referenced image.
@@ -97,6 +99,7 @@ Prior art of image protocols for terminals are as follows:
     \item It is pixel based and positions the graphics cursor in a way it is most optimal for dot printers,
         that could print 6 pixels in height per line.
     \item Specialized image format optimized for 6-pin printers.
+    \item Supports scrolling the screen if the image does not fit the current screen.
     \item implemented by: xterm, mlterm, wezterm, contour, VTE
 \end{itemize}
 
@@ -240,10 +243,10 @@ Releasing the image by its Id will simply decrement its reference counter.
 
 \subsection{Render Image}
 
-Renders an image that has either been previously uploaded and thus is being referenced
-with a unique Id, or with the image data provided inline.
+Renders an image that has been previously uploaded.
 
-Providing an upload Id along with inline image data is invalid.
+The image will be rendered with the top-left matching the current ANSI cursor position.
+The cursor will not be moved by this operation.
 
 \begin{itemize}
     \item Id; unique identifier referencing a previously uploaded image
@@ -266,11 +269,27 @@ Providing an upload Id along with inline image data is invalid.
 
 \subsection{Upload and Render Image}
 
-This uploads and renders the image via a single VT sequence. Therefore no image Id is required and
-there won't be any way to reference that image after either.
+This uploads and renders the image via a single VT sequence. Therefore no image Id
+is required and there won't be any way to reference that image after either.
 
 The parameters of this function is the sum of the image upload and image render parameters excluding the unique
-identifier.
+identifier and excluding sub-rectangle rendering parameters.
+
+The image will be rendered with the top-left matching the current ANSI cursor position.
+The cursor will not be moved by this operation.
+
+\begin{itemize}
+    \item format; a value that determines the image format. See section \ref{sec:supported-image-formtats}
+    \item data; image data in the given input format
+    \item width; optional pixel width of the given image (only required for RGB/RGBA format)
+    \item height; optional pixel height of the given image (only required for RGB/RGBA format)
+    \item resizePolicy; optional, mandates how to resize the image within the grid cells (default NoResize)
+    \item alignmentPolicy; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
+    \item grid-width; number of grid cells to render horizontally
+    \item grid-height; number of grid cells to render vertically
+\end{itemize}
+
+\todo{Specify how auto-scroll can be achieved in primary screen for Render and Upload-and-Render actions.}
 
 \subsection{Release Image}
 
@@ -308,44 +327,83 @@ This section maps each semantic action to actual VT sequences.
 
 \subsection{Upload Image}
 
-Syntax: \code{DCS id:ID ; fmt:ID ; u payload ST}
+Syntax: \code{DCS <numerical parameters> u <named parameters> ST}
+
+\subsubsection*{Numerical Parameters}
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    parameter   & Key & Value \\
+    \textbf{parameter}   & \textbf{Key} & \textbf{Value} \\
     \hline
-    Id          & 1   & UInt32 \\
-    fmt         & 2   & enum (see section \ref{sec:supported-image-formtats}) \\
-    width       & 3   & Uint32 \\
-    height      & 4   & Uint32 \\
+    fmt         & 1   & enum (see section \ref{sec:supported-image-formtats}) \\
+    width       & 2   & Uint32 \\
+    height      & 3   & Uint32 \\
     \hline
 \end{tabular}
 
 The payload's format is mandated by the \code{fmt}'s value. However, since it must not contain
 any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
 
-\subsection{Render Image}
-
-Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignment:ALIGNMENT ; status:VAL r ST}
+\subsubsection*{Named Parameters}
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    parameter   & Key & Value \\
+    \textbf{parameter}   & \textbf{Value} \\
     \hline
-    Id          & 1   & UInt32 \\
-    x           & 2   & UInt32 \\
-    y           & 2   & UInt32 \\
-    width       & 3   & UInt32 \\
-    height      & 4   & UInt32 \\
-    resize      & 5   & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
-    alignment   & 6   & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
-                &     & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
-                &     & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
-    reqStatus   & 7   & 0 (Success), 1 (Image not available) \\
+    id          & image Id \\
+    payload     & Base64 encoded image data \\
     \hline
 \end{tabular}
 
-\paragraph*{}
+\subsubsection*{Example}
+
+This is a small Bash shell example that is uploading a PNG image with a fixed ID.
+
+\begin{verbatim}
+    # Shell function demonstrating how to upload an image:
+    function send_image() {
+        local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
+        local ImageData=$(base64 "$2")
+        local ImageFormat=3 # 3=PNG
+        echo -ne "\033P1:${ImageFormat};2:640;3:480u;id=${ImageId};p=${ImageData}\033\\"
+    }
+\end{verbatim}
+
+\subsection{Render Image}
+
+Syntax: \code{DCS <numerical parameters> r <named parameters> ST}
+
+\subsubsection*{Numerical parameters}
+
+\begin{tabular}{ |c|c|l| }
+    \hline
+    \textbf{parameter}   & \textbf{Key} & \textbf{Value} \\
+    \hline
+    grid-width  & 1   & UInt32 \\
+    grid-height & 2   & UInt32 \\
+    x           & 3   & UInt32 \\
+    y           & 4   & UInt32 \\
+    width       & 5   & UInt32 \\
+    height      & 6   & UInt32 \\
+    resize      & 7   & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
+    alignment   & 8   & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
+                &     & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
+                &     & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    reqStatus   & 9   & 0 (Success), 1 (Image not available) \\
+    \hline
+\end{tabular}
+
+\subsubsection*{Named parameters}
+
+\begin{tabular}{ |c|c|l| }
+    \hline
+    \textbf{parameter}   & \textbf{Value} \\
+    \hline
+    Id          & String \\
+    \hline
+\end{tabular}
+
+\subsubsection*{Response Sequence}
 
 When a response status code was requested, the syntax will be as follows:
 
@@ -358,19 +416,67 @@ When a response status code was requested, the syntax will be as follows:
     \hline
 \end{tabular}
 
+\subsubsection*{Example}
+
+\begin{verbatim}
+    # Shell function demonstrating how to render an image:
+    function render_image() {
+        # Rendering the given PNG image at the current cursor position with a 20x10 size.
+        local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
+        local GridWidth="20"
+        local GridHeight="10"
+        echo -ne "\033P1:${GridWidth};2:${GridHeight}rid=${ImageId}\033\\"
+    }
+\end{verbatim}
+
 \subsection{Upload and Render Image}
 
-Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignment:ALIGNMENT s payload ST}
+Syntax: \code{DCS <numerical parameters> s <payload> ST}
 
-\subsection{Release Image}
-
-Syntax: \code{DCS id:ID d ST}
+\subsubsection*{Numerical parameters}
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    parameter   & Key & Value \\
+    \textbf{parameter}   & \textbf{Key} & \textbf{Value} \\
     \hline
-    Id          & 1   & UInt32 \\
+    fmt         & 1   & enum (see section \ref{sec:supported-image-formtats}) \\
+    grid-width  & 2   & UInt32 \\
+    grid-height & 3   & UInt32 \\
+    image-width & 4   & UInt32 \\
+    image-height& 5   & UInt32 \\
+    resize      & 6   & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
+    alignment   & 7   & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
+                &     & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
+                &     & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    \hline
+\end{tabular}
+
+\subsubsection*{Example}
+
+This is a small Bash shell example that is uploading a PNG image with a fixed ID.
+
+\begin{verbatim}
+    # Shell function demonstrating how to render a oneshot image:
+    function send_image_once() {
+        local ImageData=$(base64 "$1")
+        local ImageFormat=3 # 3=PNG
+        local GridWidth="20"
+        local GridHeight="10"
+        echo -ne "\033P1:${ImageFormat};2:${GridWidth};3:${GridHeight}s${ImageData}\033\\"
+    }
+\end{verbatim}
+
+\subsection{Release Image}
+
+Syntax: \code{DCS d <named parameters> ST}
+
+\subsubsection*{Named Parameters}
+
+\begin{tabular}{ |c|c|l| }
+    \hline
+    \textbf{parameter}   & \textbf{Value} \\
+    \hline
+    Id          & String \\
     \hline
 \end{tabular}
 
@@ -378,7 +484,7 @@ Syntax: \code{DCS id:ID d ST}
 
 Syntax: \DA
 
-\DA's response code for detecting support for an implementation of this specification is 11
+\DA's response code for detecting support for an implementation of this specification is \code{11}.
 
 % }}}
 \section{Support Image Formats} % {{{
