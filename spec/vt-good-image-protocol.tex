@@ -39,19 +39,20 @@ a standardization proposal}
 
 \section{Motivation} % {{{
 
-For many decades Sixel and ReGIS have been the only image protocols for decades. While both are
-ancient and not even widely implemented, newer generations of people seem to be used to see images
+For many decades Sixel and ReGIS have been the only image protocols for VTs. While both are
+ancient and not even widely implemented, newer generations of people are used to seeing images
 and even emojis everywhere. Those people may eventually touch a virtual terminal emulator
-and expect to be it no different than what they were used to by other software systems.
+and expect to be it no different than what they are used to in other software systems.
 
-There is a rise of interest in both of these fields, and thus, many virtual terminal emulator
-developers, 30 to 40 years later, have started implementing their own propriaty protocols
-for displaying images as Sixel was purely not state of the art anymore.
+There is growing interest in both of these fields, and thus, many virtual terminal emulator
+developers, 30 to 40 years later, have started implementing their own proprietary protocols
+for displaying images as Sixel was simply not state of the art anymore.
 
-This is good and bad. Because application developers do not know what to support now in case they
-intend display images. This specification attempts to unify all those image protocols - not
-as a superset, but rather as a largest common denominator of all, with implementation adaptability
-on both ends in mind, terminal and application side.
+While this is positive, it also leads to fragmentation in the ecosystem because application 
+developers do not know what to support in case they intend display images.
+This specification attempts to unify all those image protocols - not as a superset, but rather 
+as a largest common denominator, with implementation adaptability on both ends - terminal and 
+application side.
 
 % }}}
 \section{Requirements} % {{{
@@ -62,16 +63,16 @@ on both ends in mind, terminal and application side.
     \item Grid cells as the only unit size except for the actual image to be uploaded
     \item Remote-terminal capable (no dependency on the local host, such as the local file system)
     \item Synchronous operations only (no asynchronous operations unless explicitly requested)
-    \item Aspect ratio must be kept by default (support customization though)
-    \item Image upload is decoupled from image display
-    \item Cell-based masking on display or at the ability to render sub-rectangles of the uploaded image
-    \item Future-reusability of uploaded images for other uses should be possible (such as
+    \item Aspect ratio must be kept by default (and support customization)
+    \item Image upload must be decoupled from image display
+    \item Cell-based masking and the ability to render sub-rectangles of the uploaded image
+    \item Future-reusability of uploaded images for other uses (such as
         icon-display, desktop-notifications, background images)
 \end{enumerate}
 % }}}
 \section{Prior art and current state} % {{{
 
-Prior art of image protocols for the terminal are the following:
+Prior art of image protocols for terminals are as follows:
 
 \begin{itemize}
     \item Sixel graphics (implemented by: xterm, mlterm, wezterm, contour, VTE)
@@ -86,16 +87,16 @@ Prior art of image protocols for the terminal are the following:
 % }}}
 \section{Backwards Compatibility} % {{{
 
-Since all other image protocols are pixel based, this image protocol does not retain any
-backwards compatibility nor attempts to do that. Instead, the goal is to create
+Since all other image protocols are pixel based, the proposed image protocol does not 
+attempt to retain any backwards compatibility. Instead, the goal is to create
 an image protocol that is future proof with todays needs in mind.
 
 % }}}
 \section{Future Compatibility and Stability} % {{{
 
-In order to leave room for improvements, the actual VT sequences should be designed in a way
-that they allow specifying additional parameters in the future, and that older implementations
-can still work with safely ignoring any new parameters.
+In order to leave room for improvements, the VT sequences should be designed in a way
+that allows specifying additional parameters in the future, and simultaneously ensures 
+that older implementations can still work while safely ignoring any new parameters.
 
 % }}}
 \section{Terminal Emulator Requirements} % {{{
@@ -111,6 +112,8 @@ This is the list of resource requirements that must be guaranteed by the virtual
 Upper limits must be present for security reasons but can be varying by implementation.
 
 \todo{Have the ability to query resource limits?}
+\todo{What should happen when the number of images an application wants 
+      to display is higher than the limit?}
 
 % }}}
 \section{Performance Considerations} % {{{
@@ -135,8 +138,8 @@ TBD.
 Uploads an image for future render operations.
 
 \begin{itemize}
-    \item Id; a unique Id identifying the uploaded image
-    \item format; an unique ID that identifies an image format. See section \ref{sec:supported-image-formtats}
+    \item Id; a unique identifier for the uploaded image
+    \item format; a value that determines the image format. See section \ref{sec:supported-image-formtats}
     \item data; image data in the given input format
     \item width; optional pixel width of the given image (only required for RGB/RGBA format)
     \item height; optional pixel height of the given image (only required for RGB/RGBA format)
@@ -144,41 +147,41 @@ Uploads an image for future render operations.
 
 \subsubsection{Idempotency}
 
-Image upload can be implemented idempotent, i.e. the storage pool keeps an internal hash
+Image upload can be implemented to be idempotent, i.e. the storage pool keeps an internal hash
 of each image that is automatically constructed upon image upload.
-If the image was already uploaded, that image's reference count is incremented instead
-and in case of a named resource, that one will point to that existing one.
+If the image was already uploaded, that image's reference count is incremented
+and in case it is a named resource, that one will point to that existing one.
 
 \subsubsection{Storage Management}
 
 Uploaded images are reference counted. Uploading a named image will initialize its reference count to 1.
 
-When uploading an image beyond the above storage pool guarantees,
-the host may choose at actively evict older images in either priority:
+When uploading an image would exceed the storage pool's guarantees,
+the host may choose to actively evict older images in either priority:
 
 \begin{enumerate}
     \item oldest first, or
     \item least reference counted (in visible area) first.
 \end{enumerate}
 
-Evicted images that where still held in grid cells may display unicode object replacement
+Evicted images that were still held in grid cells may display a unicode object replacement
 codepoint (U+FFFC) or an empty cell.
 
-Displaying an image results in incrementing the reference count by the number of grid cells
+Displaying an image results in incrementing the reference counter by the number of grid cells
 that are holding parts of the image.
 
 Clearing a grid cell holding an image fragment (e.g. by overwriting or deleting its contents)
-will decrement the image reference count.
+will decrement the image reference counter.
 
-When no grid cell is holding a reference to the underlying image,
-the corresponding reference count should be either 1 (if uploaded in a separate step)
+When no grid cell is holding a reference to the image,
+the corresponding reference counter should be either 1 (if uploaded in a separate step)
 or 0 (if uploaded within the render instruction).
 
-Releasing the image by Id will simply decrement is reference count.
+Releasing the image by its Id will simply decrement its reference counter.
 
 \subsection{Render Image}
 
-Renders an image that has either been previously uploaded already and thus is being referenced
+Renders an image that has either been previously uploaded and thus is being referenced
 with a unique Id, or with the image data provided inline.
 
 Providing an upload Id along with inline image data is invalid.
@@ -187,10 +190,10 @@ Providing an upload Id along with inline image data is invalid.
     \item Id; unique identifier referencing a previously uploaded image
     \item grid-width; number of grid cells to render horizontally
     \item grid-height; number of grid cells to render vertically
-    \item resizePolicy; optional, mandates how to resize the image within the (default NoResize)
+    \item resizePolicy; optional, mandates how to resize the image within the grid cells (default NoResize)
     \item alignmentPolicy; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
-    \item image-x-offset; optional, start render at given pixel x-offset cell of the image (default 0)
-    \item image-y-offset; optional, start render at given pixel y-offset cell of the image (default 0)
+    \item image-x-offset; optional, start rendering at the given pixel x-offset cell of the image (default 0)
+    \item image-y-offset; optional, start rendering at the given pixel y-offset cell of the image (default 0)
     \item image-width; optional, number of pixels of the image's width to display (default: max width)
     \item image-height; optional, number of pixels of the image's height to display (default max height)
     % \item status: optional, request a success/failure status response from the terminal, by default
@@ -200,10 +203,10 @@ Providing an upload Id along with inline image data is invalid.
 \subsection{Upload and Render Image}
 
 An image can be uploaded and rendered within a single instruction.
-The image is being released automatically right after and therefore cannot be referenced after
+The image is being released automatically right after and therefore cannot be referenced
 again.
 
-The parameters of this function is the sum of image upload and image render minus the unique
+The parameters of this function is the sum of the image upload and image render parameters excluding the unique
 identifier.
 
 \subsection{Release Image}
@@ -217,7 +220,7 @@ Dereferences the use-count of a previously uploaded image.
 \subsection{Feature Detection}
 
 \DA is already used to advertise terminal features, including sixel graphics, and thus,
-could be used to also advertise for the \GoodImageProtocol.
+could be used to also advertise the availability of \GoodImageProtocol.
 
 There is some improved feature detection specification work ongoing,
 so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
@@ -255,7 +258,7 @@ Syntax: \code{DCS id:ID ; fmt:ID ; u payload ST}
     \hline
 \end{tabular}
 
-The payload's format is mandated by the \verbatim{fmt}'s value. However, since it must not contain
+The payload's format is mandated by the \code{fmt}'s value. However, since it must not contain
 any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
 
 \subsection{Render Image}
