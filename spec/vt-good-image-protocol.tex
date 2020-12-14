@@ -255,8 +255,13 @@ Providing an upload Id along with inline image data is invalid.
     \item image-y-offset; optional, start rendering at the given pixel y-offset cell of the image (default 0)
     \item image-width; optional, number of pixels of the image's width to display (default: max width)
     \item image-height; optional, number of pixels of the image's height to display (default max height)
-    % \item status: optional, request a success/failure status response from the terminal, by default
-    %     no status result will be sent back to the client application.
+    \item status: optional, request a success/failure status response code from the terminal, by default
+        no status result will be sent back to the client application.
+        The response status code can be one of the following:
+        \begin{itemize}
+            \item Success
+            \item Image Not Available (has never been or was removed actively or by the garbage collector)
+        \end{itemize}
 \end{itemize}
 
 \subsection{Upload and Render Image}
@@ -322,7 +327,7 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
 
 \subsection{Render Image}
 
-Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignment:ALIGNMENT r ST}
+Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignment:ALIGNMENT ; status:VAL r ST}
 
 \begin{tabular}{ |c|c|l| }
     \hline
@@ -337,6 +342,20 @@ Syntax: \code{DCS id:ID ; x:NUM ; y:NUM ; w:NUM ; h:NUM ; resize:RESIZE ; alignm
     alignment   & 6   & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
                 &     & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
                 &     & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    reqStatus   & 7   & 0 (Success), 1 (Image not available) \\
+    \hline
+\end{tabular}
+
+\paragraph*{}
+
+When a response status code was requested, the syntax will be as follows:
+
+\begin{tabular}{ |r|l| }
+    \hline
+    \textbf{VT sequence} & \textbf{description} \\
+    \hline
+    \code{CSI > 0 i} & Image is rendered successfully \\
+    \code{CSI > 1 i} & Image was not rendered. No image with the given Id found. \\
     \hline
 \end{tabular}
 
