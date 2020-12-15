@@ -215,12 +215,14 @@ TBD.
 
 Uploads an image for future render operations.
 
+\subsubsection*{Parameters}
+
 \begin{itemize}
-    \item Id; a unique identifier for the uploaded image
-    \item format; a value that determines the image format. See section \ref{sec:supported-image-formtats}
-    \item data; image data in the given input format
-    \item width; optional pixel width of the given image (only required for RGB/RGBA format)
-    \item height; optional pixel height of the given image (only required for RGB/RGBA format)
+    \item \textbf{id}; a unique identifier for the uploaded image
+    \item \textbf{format}; a value that determines the image format. See section \ref{sec:supported-image-formtats}
+    \item \textbf{data}; image data in the given input format
+    \item \textbf{width}; optional pixel width of the given image (only required for RGB/RGBA format)
+    \item \textbf{height}; optional pixel height of the given image (only required for RGB/RGBA format)
 \end{itemize}
 
 \subsubsection{Idempotency}
@@ -285,9 +287,9 @@ The cursor will not be moved by this operation.
         \end{itemize}
 \end{itemize}
 
-\paragraph*{}
-If parameter \textbf{grid-width} and \textbf{grid-height} are both omitted (or set to 0), then the
-number of grid cells will be automatically determined.
+% \paragraph*{}
+% If parameter \textbf{grid-width} and \textbf{grid-height} are both omitted (or set to 0), then the
+% number of grid cells will be automatically determined.
 
 \paragraph*{}
 If one of the parameters \textbf{grid-width} and \textbf{grid-height} is present and the other is
@@ -349,15 +351,17 @@ identifier and excluding sub-rectangle rendering parameters.
 The image will be rendered with the top-left matching the current ANSI cursor position.
 The cursor will not be moved by this operation.
 
+\subsubsection*{Parameters}
+
 \begin{itemize}
-    \item format; a value that determines the image format. See section \ref{sec:supported-image-formtats}
-    \item data; image data in the given input format
-    \item width; optional pixel width of the given image (only required for RGB/RGBA format)
-    \item height; optional pixel height of the given image (only required for RGB/RGBA format)
-    \item resizePolicy; optional, mandates how to resize the image within the grid cells (default NoResize)
-    \item alignmentPolicy; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
-    \item grid-width; number of grid cells to render horizontally
-    \item grid-height; number of grid cells to render vertically
+    \item \textbf{format}; a value that determines the image format. See section \ref{sec:supported-image-formtats}
+    \item \textbf{data}; image data in the given input format
+    \item \textbf{image-width}; optional, number of pixels of the image's width to display (default: max width)
+    \item \textbf{image-height}; optional, number of pixels of the image's height to display (default max height)
+    \item \textbf{resize-policy}; optional, mandates how to resize the image within the grid cells (default NoResize)
+    \item \textbf{alignment-policy}; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
+    \item \textbf{grid-width}; number of grid cells to render horizontally
+    \item \textbf{grid-height}; number of grid cells to render vertically
 \end{itemize}
 
 \todo{Specify how auto-scroll can be achieved in primary screen for Render and Upload-and-Render actions.}
@@ -368,8 +372,10 @@ Removes the mapping from unique Id to the image in a storage pool.
 
 This will cause decrementing the use-count of the previously uploaded image.
 
+\subsubsection*{Parameters}
+
 \begin{itemize}
-    \item Id; Unique identifier referencing a previously uploaded image.
+    \item \textbf{id}; Unique identifier referencing a previously uploaded image.
 \end{itemize}
 
 \subsection{Feature Detection}
@@ -586,6 +592,13 @@ Syntax: \DA
 % }}}
 
 \section{Editorial Notes}
+
+\begin{itemize}
+    \item Maybe use tables instead of lists for parameter listings?
+    \item $0x3A$ \code{:} is not allowed in DCS, check that. Maybe all params should be name-based then ...
+    \item Should we mention how to deal with HiDPI displays and content scaling?
+\end{itemize}
+
 \listoftodos
 
 \end{document}
