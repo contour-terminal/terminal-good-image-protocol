@@ -264,17 +264,19 @@ Renders an image that has been previously uploaded.
 The image will be rendered with the top-left matching the current ANSI cursor position.
 The cursor will not be moved by this operation.
 
+\subsubsection*{Parameters}
+
 \begin{itemize}
-    \item Id; unique identifier referencing a previously uploaded image
-    \item grid-width; number of grid cells to render horizontally
-    \item grid-height; number of grid cells to render vertically
-    \item resizePolicy; optional, mandates how to resize the image within the grid cells (default NoResize)
-    \item alignmentPolicy; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
-    \item image-x-offset; optional, start rendering at the given pixel x-offset cell of the image (default 0)
-    \item image-y-offset; optional, start rendering at the given pixel y-offset cell of the image (default 0)
-    \item image-width; optional, number of pixels of the image's width to display (default: max width)
-    \item image-height; optional, number of pixels of the image's height to display (default max height)
-    \item status: optional, request a success/failure status response code from the terminal, by default
+    \item \textbf{Id}; unique identifier referencing a previously uploaded image
+    \item \textbf{grid-width}; number of grid cells to render horizontally
+    \item \textbf{grid-height}; number of grid cells to render vertically
+    \item \textbf{resize-policy}; optional, mandates how to resize the image within the grid cells (default NoResize)
+    \item \textbf{alignment-policy}; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
+    \item \textbf{image-x-offset}; optional, start rendering at the given pixel x-offset cell of the image (default 0)
+    \item \textbf{image-y-offset}; optional, start rendering at the given pixel y-offset cell of the image (default 0)
+    \item \textbf{image-width}; optional, number of pixels of the image's width to display (default: max width)
+    \item \textbf{image-height}; optional, number of pixels of the image's height to display (default max height)
+    \item \textbf{status}: optional, request a success/failure status response code from the terminal, by default
         no status result will be sent back to the client application.
         The response status code can be one of the following:
         \begin{itemize}
@@ -282,6 +284,59 @@ The cursor will not be moved by this operation.
             \item Image Not Available (has never been or was removed actively or by the garbage collector)
         \end{itemize}
 \end{itemize}
+
+\paragraph*{}
+If parameter \textbf{grid-width} and \textbf{grid-height} are both omitted (or set to 0), then the
+number of grid cells will be automatically determined.
+
+\paragraph*{}
+If one of the parameters \textbf{grid-width} and \textbf{grid-height} is present and the other is
+missing, the missing one will be automatically determined by preserving the aspect ratio.
+
+\paragraph*{}
+Rendered images that produce a padding due to alignment- and resize-policy will fill the gap with the
+currently active SGR background color.
+
+\paragraph*{}
+Reverse video mode mode (\code{DECSCNM}) will affect the padding color but not the image.
+
+\subsubsection*{Resize Policy}
+
+\begin{tabular}{ |l|l| }
+    \hline
+    \textbf{Name}          & \textbf{Description} \\
+    \hline
+    NoResize      & Does not perform any resize, leading to a padding on one or two sides \\
+                  & as mandated by the alignment-policy. \\
+    ResizeToFit   & Resizes the image to fit the specified grid width and height, \\
+                  & leading to a padding on zero or one sides as mandated by the alignment-policy. \\
+    ResizeToFill  & Resizes the image to fill the specified grid width and height, \\
+                  & preserving the aspect ratio, leading to potential clipping depending on the \\
+                  & alignment-policy. \\
+    StretchToFill & Resizes the image to fill the specified grid width and height, \\
+                  & ignoring the aspect ratio, ignoring alignment-policy. \\
+    \hline
+\end{tabular}
+
+\subsubsection*{Resize Policy}
+
+\begin{tabular}{ |l|l| }
+    \hline
+    \textbf{Name}          & \textbf{Description} \\
+    \hline
+    TopCenter     & The image is aligned vertically on the top and horizontally in the center of the grid. \\
+    TopStart      & The image is aligned vertically on the top and horizontally on the left. \\
+    TopEnd        & The image is aligned vertically on the top and horizontally on the right. \\
+    \hline
+    MiddleCenter  & The image is aligned vertically and horizontally in the center of the grid. \\
+    MiddleStart   & The image is aligned vertically centered and horizontally on the left. \\
+    MiddleEnd     & The image is aligned vertically centered and horizontally on the right. \\
+    \hline
+    BottomCenter  & The image is aligned vertically on the bottom and horizontally in the center of the grid. \\
+    BottomStart   & The image is aligned vertically on the bottom and horizontally on the left. \\
+    BottomEnd     & The image is aligned vertically on the bottom and horizontally on the right. \\
+    \hline
+\end{tabular}
 
 \subsection{Upload and Render Image}
 
@@ -309,7 +364,9 @@ The cursor will not be moved by this operation.
 
 \subsection{Release Image}
 
-Dereferences the use-count of a previously uploaded image.
+Removes the mapping from unique Id to the image in a storage pool.
+
+This will cause decrementing the use-count of the previously uploaded image.
 
 \begin{itemize}
     \item Id; Unique identifier referencing a previously uploaded image.
@@ -366,8 +423,8 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
     \hline
     \textbf{parameter}   & \textbf{Value} \\
     \hline
-    id          & image Id \\
-    payload     & Base64 encoded image data \\
+    id          & image Id as string \\
+    p           & Base64 encoded image data \\
     \hline
 \end{tabular}
 
@@ -381,7 +438,7 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
         local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
         local ImageData=$(base64 "$2")
         local ImageFormat=3 # 3=PNG
-        echo -ne "\033P1:${ImageFormat};2:640;3:480u;id=${ImageId};p=${ImageData}\033\\"
+        echo -ne "\033P1:${ImageFormat}uid=${ImageId};p=${ImageData}\033\\"
     }
 \end{verbatim}
 
@@ -415,7 +472,7 @@ Syntax: \code{DCS <numerical parameters> r <named parameters> ST}
     \hline
     \textbf{parameter}   & \textbf{Value} \\
     \hline
-    Id          & String \\
+    id          & image Id as string \\
     \hline
 \end{tabular}
 
