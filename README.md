@@ -1,6 +1,8 @@
 # Terminal \*Good\* Image Protocol
 
-This repository aims to formalize the `*Good* Image Protocol` that
+**IMPORTANT: THIS PROJECT IS IN ALPHA STAGE & ACTIVE DEVELOPMENT**
+
+This repository aims to finish and formalize the `*Good* Image Protocol` that
 was posted on terminal-wg issue [#26](https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/26).
 
 ## Goal of this repository

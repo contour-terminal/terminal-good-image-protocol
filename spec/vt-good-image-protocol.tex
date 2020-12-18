@@ -16,6 +16,12 @@
 % \usepackage{fancyhdr}
 % \usepackage{graphicx}
 
+\usepackage{draftwatermark}
+\SetWatermarkText{Draft}
+\SetWatermarkScale{8}
+
+\usepackage[english]{babel}
+
 \usepackage{xcolor}
 \definecolor{light-gray}{gray}{0.95}
 
@@ -25,7 +31,8 @@
 \title{VT Good Image Protocol \\
 a standardization proposal}
 \author{Christian Parpart}
-\date{2020-12-13 (draft, revision 0)}
+% \date{2020-12-18 (draft, revision 0)}
+\date{\today \quad (draft, revision 0)}
 
 \newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
 
@@ -112,7 +119,7 @@ Prior art of image protocols for terminals are as follows:
 \begin{itemize}
     \item First appeared in 2017
     \item Seperates image upload from image display
-    \item Can mandate image sizes in pixels as well as in grid cell dimensions.
+    \item Can mandate image sizes in pixels as well as in screen cell dimensions.
     \item Images are rendered independantly of text with a specified Z-axis.
     \item Images can be deleted without knowning their names but only by specifying X/Y/Z axis
           and delete all images intersecting these criteria.
@@ -130,7 +137,7 @@ Prior art of image protocols for terminals are as follows:
 \end{itemize}
 
 None of the above image protocols are a good candiate. iTerm2's image protocol is very simple and
-can be rendered by specifying grid cell sizes instead of relying on pixels, but lags some
+can be rendered by specifying screen cell sizes instead of relying on pixels, but lags some
 flexibility.
 
 Kitty image protocol on the other hand does provide very good flexibility but is a way too complex which
@@ -148,7 +155,8 @@ without breaking compatibility to existing implementations.
 \section{Requirements} % {{{
 
 \begin{enumerate}
-    \item \textbf{Deterministic emulation} - The image rendering must not be affected by font size or similar properties.
+    \item \textbf{Deterministic emulation} - The image rendering must not be affected by font size
+        or similar properties nor on external API to make productive use of this protocol.
     \item \textbf{Synchronous operations by default} - No asynchronous operations unless explicitly requested.
     \item \textbf{Remote-terminal capable} - No dependency on the local host, such as the local file system.
     \item \textbf{Preserve aspect ratio by default}
@@ -224,13 +232,18 @@ Uploads an image for future render operations.
 
 \subsubsection*{Parameters}
 
-\begin{itemize}
-    \item \textbf{id}; a unique identifier for the uploaded image
-    \item \textbf{format}; a value that determines the image format. See section \ref{sec:supported-image-formtats}
-    \item \textbf{data}; image data in the given input format
-    \item \textbf{width}; optional pixel width of the given image (only required for RGB/RGBA format)
-    \item \textbf{height}; optional pixel height of the given image (only required for RGB/RGBA format)
-\end{itemize}
+\begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{parameter name} & \textbf{default} & \textbf{description} \\
+    \hline
+    \textbf{name}       & & a unique identifier for the uploaded image \\
+    \textbf{format}     & RGBA & a value that determines the image format. \\
+                        & & See section \ref{sec:supported-image-formtats} for available image formats \\
+    \textbf{width}      & & optional pixel width of the given image (only required for RGB/RGBA format) \\
+    \textbf{height}     & & optional pixel height of the given image (only required for RGB/RGBA format) \\
+    \textbf{data}       & & image data in the given input format \\
+    \hline
+\end{tabular}
 
 \subsubsection{Idempotency}
 
@@ -244,62 +257,65 @@ and in case it is a named resource, that one will point to that existing one.
 Uploaded images are reference counted. Uploading a named image will initialize its reference count to 1.
 
 When uploading an image would exceed the storage pool's guarantees,
-the host may choose to actively evict older images in either priority:
+the host may choose to actively evict images in FIFO-order until the new image fits.
 
-\begin{enumerate}
-    \item oldest first, or
-    \item least reference counted (in visible area) first.
-\end{enumerate}
+If the image is larger than the allowed storage size, the upload will fail.
 
-Evicted images that were still held in grid cells may display a unicode object replacement
+Evicted images that were still held in screen cells may display a unicode object replacement
 codepoint (U+FFFC) or an empty cell.
 
-Displaying an image results in incrementing the reference counter by the number of grid cells
-that are holding parts of the image.
+Displaying an image results in incrementing the reference counter by the number of screen cells
+that are holding fragments of the image.
 
-Clearing a grid cell holding an image fragment (e.g. by overwriting or deleting its contents)
+Clearing a screen cell holding an image fragment (e.g. by overwriting or deleting its contents)
 will decrement the image reference counter.
 
-When no grid cell is holding a reference to the image,
+When no screen cell is holding a reference to the image,
 the corresponding reference counter should be either 1 (if uploaded in a separate step)
 or 0 (if uploaded within the render instruction).
 
-Releasing the image by its Id will simply decrement its reference counter.
+Releasing the image by its name will remove the name-to-image association, and thus,
+decrement its reference counter.
+
+Uploading a new image with an already used name will first release the old name-to-image association
+as mentioned earlier and then register the new image with its name. This will not cause
+any visible side effects - existing image fragments to the old image will not be touched.
 
 \subsection{Render Image}
 
 Renders an image that has been previously uploaded.
-
 The image will be rendered with the top-left matching the current ANSI cursor position.
 The cursor will not be moved by this operation.
 
 \subsubsection*{Parameters}
 
-\begin{itemize}
-    \item \textbf{Id}; unique identifier referencing a previously uploaded image
-    \item \textbf{grid-width}; number of grid cells to render horizontally
-    \item \textbf{grid-height}; number of grid cells to render vertically
-    \item \textbf{resize-policy}; optional, mandates how to resize the image within the grid cells (default NoResize)
-    \item \textbf{alignment-policy}; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
-    \item \textbf{image-x-offset}; optional, start rendering at the given pixel x-offset cell of the image (default 0)
-    \item \textbf{image-y-offset}; optional, start rendering at the given pixel y-offset cell of the image (default 0)
-    \item \textbf{image-width}; optional, number of pixels of the image's width to display (default: max width)
-    \item \textbf{image-height}; optional, number of pixels of the image's height to display (default max height)
-    \item \textbf{status}: optional, request a success/failure status response code from the terminal, by default
-        no status result will be sent back to the client application.
-        The response status code can be one of the following:
-        \begin{itemize}
-            \item Success
-            \item Image Not Available (has never been or was removed actively or by the garbage collector)
-        \end{itemize}
-\end{itemize}
+\begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{parameter name} & \textbf{default} & \textbf{description} \\
+    \hline
+    \textbf{name} &           & unique identifier referencing a previously uploaded image \\
+    \textbf{screen-rows} &    & number of screen cells to render horizontally \\
+    \textbf{screen-cols} &    & number of screen cells to render vertically \\
+    \textbf{resize-policy} & NoResize & optional, mandates how to resize the image within the screen cells \\
+    \textbf{alignment-policy} & MiddleCenter & optional, mandates how to align the image within the screen cells \\
+    \textbf{image-x-offset} & 0 & start rendering at the given pixel x-offset cell of the image \\
+    \textbf{image-y-offset} & 0 & start rendering at the given pixel y-offset cell of the image \\
+    \textbf{image-width}    & screen-rows & optional, number of pixels of the image's width to display \\
+    \textbf{image-height}   & screen-cols & number of pixels of the image's height to display \\
+    \textbf{status}         & false & request a success/failure status response code from the terminal \\
+        & & If value is true, a response is sent back to the application \\
+        & & to indicate success or failure. \\
+        & & If value is set to false (or parameter is not present), \\
+        & & no response is sent back to the application. \\
+    \hline
+\end{tabular}
 
 % \paragraph*{}
-% If parameter \textbf{grid-width} and \textbf{grid-height} are both omitted (or set to 0), then the
-% number of grid cells will be automatically determined.
+% If parameter \textbf{screen-width} and \textbf{screen-height} are both omitted (or set to 0), then the
+% number of screen cells will be automatically determined.
 
 \paragraph*{}
-If one of the parameters \textbf{grid-width} and \textbf{grid-height} is present and the other is
+If one of the parameters \textbf{screen-width} and \textbf{screen-height} is present and the other is
 missing, the missing one will be automatically determined by preserving the aspect ratio.
 
 \paragraph*{}
@@ -317,31 +333,32 @@ Reverse video mode mode (\code{DECSCNM}) will affect the padding color but not t
     \hline
     NoResize      & Does not perform any resize, leading to a padding on one or two sides \\
                   & as mandated by the alignment-policy. \\
-    ResizeToFit   & Resizes the image to fit the specified grid width and height, \\
+    ResizeToFit   & Resizes the image to fit the specified screen width and height, \\
                   & leading to a padding on zero or one sides as mandated by the alignment-policy. \\
-    ResizeToFill  & Resizes the image to fill the specified grid width and height, \\
+    ResizeToFill  & Resizes the image to fill the specified screen width and height, \\
                   & preserving the aspect ratio, leading to potential clipping depending on the \\
                   & alignment-policy. \\
-    StretchToFill & Resizes the image to fill the specified grid width and height, \\
+    StretchToFill & Resizes the image to fill the specified screen width and height, \\
                   & ignoring the aspect ratio, ignoring alignment-policy. \\
     \hline
 \end{tabular}
 
-\subsubsection*{Resize Policy}
+\subsubsection*{Alignment Policy}
 
 \begin{tabular}{ |l|l| }
     \hline
     \textbf{Name}          & \textbf{Description} \\
     \hline
-    TopCenter     & The image is aligned vertically on the top and horizontally in the center of the grid. \\
+    TopCenter     & The image is aligned vertically on the top and horizontally in the center of the screen. \\
     TopStart      & The image is aligned vertically on the top and horizontally on the left. \\
     TopEnd        & The image is aligned vertically on the top and horizontally on the right. \\
     \hline
-    MiddleCenter  & The image is aligned vertically and horizontally in the center of the grid. \\
+    MiddleCenter  & The image is aligned vertically and horizontally in the center of the screen. \\
     MiddleStart   & The image is aligned vertically centered and horizontally on the left. \\
     MiddleEnd     & The image is aligned vertically centered and horizontally on the right. \\
     \hline
-    BottomCenter  & The image is aligned vertically on the bottom and horizontally in the center of the grid. \\
+    BottomCenter  & The image is aligned vertically on the bottom and horizontally in the center of
+    the screen. \\
     BottomStart   & The image is aligned vertically on the bottom and horizontally on the left. \\
     BottomEnd     & The image is aligned vertically on the bottom and horizontally on the right. \\
     \hline
@@ -360,30 +377,41 @@ The cursor will not be moved by this operation.
 
 \subsubsection*{Parameters}
 
-\begin{itemize}
-    \item \textbf{format}; a value that determines the image format. See section \ref{sec:supported-image-formtats}
-    \item \textbf{data}; image data in the given input format
-    \item \textbf{image-width}; optional, number of pixels of the image's width to display (default: max width)
-    \item \textbf{image-height}; optional, number of pixels of the image's height to display (default max height)
-    \item \textbf{resize-policy}; optional, mandates how to resize the image within the grid cells (default NoResize)
-    \item \textbf{alignment-policy}; optional, mandates how to align the image within the grid cells (default: MiddleCenter)
-    \item \textbf{grid-width}; number of grid cells to render horizontally
-    \item \textbf{grid-height}; number of grid cells to render vertically
-\end{itemize}
+\begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{parameter name} & \textbf{default} & \textbf{description} \\
+    \hline
+    \textbf{format} & & a value that determines the image format. See section \ref{sec:supported-image-formtats} \\
+    \textbf{data} & & image data in the given input format \\
+    \textbf{image-width} & 0 & number of pixels of the image's width to display \\
+    \textbf{image-height} & 0 & number of pixels of the image's height to display \\
+    \textbf{resize-policy} & NoResize & mandates how to resize the image within the screen cells \\
+    \textbf{alignment-policy} & MiddleCenter & mandates how to align the image within the screen cells \\
+    \textbf{screen-width} & & number of screen cells to render horizontally \\
+    \textbf{screen-height} & & number of screen cells to render vertically \\
+    \textbf{auto-scroll} & & boolean, indicating whether or not the page is beign scrolled up \\
+            & & if the image would not fit otherwise \\
+    \hline
+\end{tabular}
 
 \todo{Specify how auto-scroll can be achieved in primary screen for Render and Upload-and-Render actions.}
+\todo{Should auto-scroll be only possible in primary screen?}
 
 \subsection{Release Image}
 
-Removes the mapping from unique Id to the image in a storage pool.
-
+Removes the mapping of the name to the image in a storage pool.
 This will cause decrementing the use-count of the previously uploaded image.
+Existing rendered images are not affected by this operation.
 
 \subsubsection*{Parameters}
 
-\begin{itemize}
-    \item \textbf{id}; Unique identifier referencing a previously uploaded image.
-\end{itemize}
+\begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{parameter name} & \textbf{default} & \textbf{description} \\
+    \hline
+    \textbf{name}       & & a unique identifier of the uploaded image \\
+    \hline
+\end{tabular}
 
 \subsection{Feature Detection}
 
@@ -397,7 +425,7 @@ so there may be other ways to detect \GoodImageProtocol in the future, when that
 
 \subsubsection*{Clearing the screen}
 
-VT sequences (such as \code{CSI Ps J}) that reset at least the textual contents of the grid cells will also
+VT sequences (such as \code{CSI Ps J}) that reset at least the textual contents of the screen cells will also
 clear their image fragment referencing an underlying image, possibly also releasing the
 underlying image(s) from the image storage pool when their reference count goes down to zero.
 
@@ -406,6 +434,35 @@ underlying image(s) from the image storage pool when their reference count goes 
 Alternate screen and primary screen maintain both their own image storage pool.
 
 When leaving the alternate screen, its image storage pool gets cleared too.
+
+\subsubsection*{Screen cell characters and image tiles}
+
+Image fragments and characters in a screen cell are mutually exclusive.
+Therefore, when an image is being rendered into a grid cell, it is replacing the graphics rendition and
+character information, except for background color that may be used when filling the padding pixels.
+
+If reverse-video is enabled, foreground color becomes the background color for the padding pixels.
+
+Analogous, when a character is placed into a screen cell that previously contained an image
+fragment, this image fragment is being replaced by the character.
+
+\subsubsection*{Image alpha channel and graphics rendition background color}
+
+Images with an alpha channel will blend into the graphics renditions background color of that cell
+analogous to how padding pixel color is applied for image fragments.
+
+\subsubsection*{Hyperlinks}
+
+If the terminal emulator supports hyperlinks and the application has initiated a hyperlink, followed
+by rendering an image, the whole rendered image becomes hyperlinked, analogous to how hyperlinks
+are applied to text.
+
+\subsubsection*{Text reflow}
+
+Text reflow is supported only inconsistently across a few terminals. Therefore this
+specification does not attempt to address this for images. When text reflow is going to
+be formally specified it must then also address images.
+
 % }}}
 \section{Syntax} % {{{
 
@@ -413,28 +470,43 @@ This section maps each semantic action to actual VT sequences.
 
 \subsection{DCS Message Format}
 
-TODO: describe the Message format here.
+\todo{message format spec}
+
+TBD. Describe the Message format here that is being implemented in MessageParser.\{h,cpp\}.
+
+\begin{itemize}
+    \item inspired by HTTP message protocol
+    \item optional sequence of headers and an optional body
+    \item header is a name and a value, delimited by equal symbol \code{=}
+    \item header sequence is delimited by comma symbol \code{,}
+    \item header sequence and body is delimited by semicolon \code{;}
+    \item header value and body can be base64 encoded by prepending \\
+        an exclamation mark at the beginning of the header's value or body.
+    \item superfluous commas in header seperation are ignored
+    \item header names without a value reflect a boolean truth value
+\end{itemize}
 
 \subsection{Upload Image}
 
-Syntax: \code{DCS u <named parameters> ST}
+Syntax: \code{DCS u <message> ST}
 
 The payload's format is mandated by the \code{fmt}'s value. However, since it must not contain
 any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
 
-\subsubsection*{Named Parameters}
+\subsubsection*{Parameters}
 
-\begin{tabular}{ |c|c|l| }
+\begin{tabular}{ |l|l|l| }
     \hline
-    \textbf{parameter}   & description \\
+    \textbf{header name}   & \textbf{title}   & \textbf{notes} \\
     \hline
-    fmt         & enum (see section \ref{sec:supported-image-formtats}) \\
-    width       & number of image width of the uploaded image (not needed for PNG) \\
-    height      & number of image height of the uploaded image (not needed for PNG) \\
-    n           & unique name of the image \\
-    p           & Base64 encoded image data \\
+    \textbf{f}       & format & enum (see section \ref{sec:supported-image-formtats}) \\
+    \textbf{w}       & width & number of image width of the uploaded image (not needed for PNG) \\
+    \textbf{h}       & height & number of image height of the uploaded image (not needed for PNG) \\
+    \textbf{n}       & name & unique name of the image \\
     \hline
 \end{tabular}
+
+The message body contains the image data.
 
 \subsubsection*{Example}
 
@@ -450,32 +522,32 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
     }
 \end{verbatim}
 
+\pagebreak
+
 \subsection{Render Image}
 
-Syntax: \code{DCS r <named parameters> ST}
+Syntax: \code{DCS r <message> ST}
 
-\subsubsection*{Named parameters}
+\subsubsection*{Message parameters}
 
-\begin{tabular}{ |c|c|l| }
+\begin{tabular}{ |r|l|l| }
     \hline
-    \textbf{parameter}   & \textbf{Value} \\
+    \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
-    name        & image Id as string \\
-    c           & number of columns this image will be printed on \\
-    r           & number of rows the image will be printed on \\
-    x           & x-offset into the referenced image in screen coordinates \\
-    y           & y-offset into the referenced image in screen coordinates \\
-    w           & width of the referenced image in screen coordinates \\
-    h           & height of the referenced image in screen coordinates \\
-    z           & resize policy (default: 2), one of: \\ % TODO: defaults should have the lowest value (=> 1)
-                & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
-    a           & alignment policy (default: 1), one of: \\
-                & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
-                & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
-                & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
-    s           & optionally request a status whether the image was been rendered \\
-                & default is no response will be sent, values are one of: \\
-                & 0 (Success), 1 (Image not available) \\
+    n & name            & image Id as string \\
+    c & screen-cols     & number of columns this image will be printed on \\
+    r & screen-rows     & number of rows the image will be printed on \\
+    x & image-x-offset  & x-offset into the referenced image in screen coordinates \\
+    y & image-x-offset  & y-offset into the referenced image in screen coordinates \\
+    w & image-width     & width of the referenced image in screen coordinates \\
+    h & image-height    & height of the referenced image in screen coordinates \\
+    z & resize-policy   & one of: \\ % TODO: defaults should have the lowest value (=> 1)
+      &                 & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
+    a & alignment-policy & one of: \\
+      &                 & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
+      &                 & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
+      &                 & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    s & status          & one of: 1 (request status response), 0 otherwise \\
     \hline
 \end{tabular}
 
@@ -499,9 +571,9 @@ When a response status code was requested, the syntax will be as follows:
     function render_image() {
         # Rendering the given PNG image at the current cursor position with a 20x10 size.
         local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
-        local GridWidth="20"
-        local GridHeight="10"
-        echo -ne "\033P1:${GridWidth};2:${GridHeight}rid=${ImageId}\033\\"
+        local ScreenWidth="20"
+        local ScreenHeight="10"
+        echo -ne "\033P1:${ScreenWidth};2:${ScreenHeight}rid=${ImageId}\033\\"
     }
 \end{verbatim}
 
@@ -513,11 +585,11 @@ Syntax: \code{DCS <numerical parameters> s <payload> ST}
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    \textbf{parameter}   & \textbf{Key} & \textbf{Value} \\
+    \textbf{parameter name}   & \textbf{Key} & \textbf{Value} \\
     \hline
     fmt         & 1   & enum (see section \ref{sec:supported-image-formtats}) \\
-    grid-width  & 2   & UInt32 \\
-    grid-height & 3   & UInt32 \\
+    screen-width  & 2   & UInt32 \\
+    screen-height & 3   & UInt32 \\
     image-width & 4   & UInt32 \\
     image-height& 5   & UInt32 \\
     resize      & 6   & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
@@ -544,13 +616,13 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
 
 \subsection{Release Image}
 
-Syntax: \code{DCS d <named parameters> ST}
+Syntax: \code{DCS d <message> ST}
 
-\subsubsection*{Named Parameters}
+\subsubsection*{Message parameters}
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    \textbf{parameter}   & \textbf{Value} \\
+    \textbf{parameter name}   & \textbf{Value} \\
     \hline
     Id          & String \\
     \hline
@@ -594,6 +666,10 @@ Syntax: \DA
     \item Maybe use tables instead of lists for parameter listings?
     \item $0x3A$ \code{:} is not allowed in DCS, check that. Maybe all params should be name-based then ...
     \item Should we mention how to deal with HiDPI displays and content scaling?
+    \item How to implement a cat-like too for images without breaking determinism for proxy
+        terminals. I.e. how does the proxy terminal know about how many rows will be used when
+        a pixel perfect rendering is attempted (resize-policy set to NoResize,
+        screen-cols=\$COLUMNS). But what is row count?
 \end{itemize}
 
 \listoftodos
