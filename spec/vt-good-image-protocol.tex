@@ -3,8 +3,15 @@
 \usepackage[english]{babel}
 
 \usepackage{colortbl}
-\usepackage{hyperref}
 \usepackage{todonotes}
+
+\usepackage[hidelinks]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=cyan
+}
 
 % \usepackage{fancyhdr}
 % \usepackage{graphicx}
@@ -585,13 +592,13 @@ Syntax: \DA
 \section{References} % {{{
 
 \begin{enumerate}
-    \item \label{ref:ctlseqs}https://invisible-island.net/xterm/ctlseqs/ctlseqs.txt
-    \item \label{ref:twg-simple-image-display}Simple Image display, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/12
-    \item \label{ref:twg-gip}Good Image Protocol, https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/26
-    \item \label{ref:image-sixel}Sixel Image Protocol, https://vt100.net/docs/vt3xx-gp/chapter14.html
-    \item \label{ref:image-item2}iTerm2's image protocol, https://iterm2.com/documentation-images.html
-    \item \label{ref:image-terminology}Terminology's image protocol, https://www.enlightenment.org/docs/apps/terminology.md \todo{Terminology image protocol spec not found. ;-(}
-    \item \label{ref:image-kitty}Kitty's image protocol, https://sw.kovidgoyal.net/kitty/graphics-protocol.html
+    \item \label{ref:ctlseqs}\url{https://invisible-island.net/xterm/ctlseqs/ctlseqs.txt}
+    \item \label{ref:twg-simple-image-display}Simple Image display, \url{https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/12}
+    \item \label{ref:twg-gip}Good Image Protocol, \url{https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/26}
+    \item \label{ref:image-sixel}Sixel Image Protocol, \url{https://vt100.net/docs/vt3xx-gp/chapter14.html}
+    \item \label{ref:image-item2}iTerm2's image protocol, \url{https://iterm2.com/documentation-images.html}
+    \item \label{ref:image-terminology}Terminology's image protocol, \url{https://www.enlightenment.org/docs/apps/terminology.md} \todo{Terminology image protocol spec not found. ;-(}
+    \item \label{ref:image-kitty}Kitty's image protocol, \url{https://sw.kovidgoyal.net/kitty/graphics-protocol.html}
 \end{enumerate}
 % }}}
 
