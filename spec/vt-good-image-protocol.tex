@@ -417,19 +417,7 @@ TODO: describe the Message format here.
 
 \subsection{Upload Image}
 
-Syntax: \code{DCS <numerical parameters> u <named parameters> ST}
-
-\subsubsection*{Numerical Parameters}
-
-\begin{tabular}{ |c|c|l| }
-    \hline
-    \textbf{parameter}   & \textbf{Key} & \textbf{Value} \\
-    \hline
-    fmt         & 1   & enum (see section \ref{sec:supported-image-formtats}) \\
-    width       & 2   & Uint32 \\
-    height      & 3   & Uint32 \\
-    \hline
-\end{tabular}
+Syntax: \code{DCS u <named parameters> ST}
 
 The payload's format is mandated by the \code{fmt}'s value. However, since it must not contain
 any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
@@ -438,9 +426,12 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    \textbf{parameter}   & \textbf{Value} \\
+    \textbf{parameter}   & description \\
     \hline
-    id          & image Id as string \\
+    fmt         & enum (see section \ref{sec:supported-image-formtats}) \\
+    width       & number of image width of the uploaded image (not needed for PNG) \\
+    height      & number of image height of the uploaded image (not needed for PNG) \\
+    n           & unique name of the image \\
     p           & Base64 encoded image data \\
     \hline
 \end{tabular}
@@ -455,33 +446,13 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
         local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
         local ImageData=$(base64 "$2")
         local ImageFormat=3 # 3=PNG
-        echo -ne "\033P1:${ImageFormat}uid=${ImageId};p=${ImageData}\033\\"
+        echo -ne "\033Puf=${ImageFormat},n=${ImageId};!${ImageData}\033\\"
     }
 \end{verbatim}
 
 \subsection{Render Image}
 
-Syntax: \code{DCS <numerical parameters> r <named parameters> ST}
-
-\subsubsection*{Numerical parameters}
-
-\begin{tabular}{ |c|c|l| }
-    \hline
-    \textbf{parameter}   & \textbf{Key} & \textbf{Value} \\
-    \hline
-    grid-width  & 1   & UInt32 \\
-    grid-height & 2   & UInt32 \\
-    x           & 3   & UInt32 \\
-    y           & 4   & UInt32 \\
-    width       & 5   & UInt32 \\
-    height      & 6   & UInt32 \\
-    resize      & 7   & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
-    alignment   & 8   & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
-                &     & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
-                &     & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
-    reqStatus   & 9   & 0 (Success), 1 (Image not available) \\
-    \hline
-\end{tabular}
+Syntax: \code{DCS r <named parameters> ST}
 
 \subsubsection*{Named parameters}
 
@@ -489,7 +460,22 @@ Syntax: \code{DCS <numerical parameters> r <named parameters> ST}
     \hline
     \textbf{parameter}   & \textbf{Value} \\
     \hline
-    id          & image Id as string \\
+    name        & image Id as string \\
+    c           & number of columns this image will be printed on \\
+    r           & number of rows the image will be printed on \\
+    x           & x-offset into the referenced image in screen coordinates \\
+    y           & y-offset into the referenced image in screen coordinates \\
+    w           & width of the referenced image in screen coordinates \\
+    h           & height of the referenced image in screen coordinates \\
+    z           & resize policy (default: 2), one of: \\ % TODO: defaults should have the lowest value (=> 1)
+                & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
+    a           & alignment policy (default: 1), one of: \\
+                & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
+                & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
+                & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    s           & optionally request a status whether the image was been rendered \\
+                & default is no response will be sent, values are one of: \\
+                & 0 (Success), 1 (Image not available) \\
     \hline
 \end{tabular}
 
