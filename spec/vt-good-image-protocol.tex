@@ -1,4 +1,6 @@
-\documentclass{article}
+% vim:cc=80:cole=0
+\documentclass[a4paper]{article}
+%\documentclass[a4paper, 20pt]{extreport}
 \usepackage[utf8]{inputenc}
 \usepackage[english]{babel}
 
@@ -18,7 +20,7 @@
 
 \usepackage{draftwatermark}
 \SetWatermarkText{Draft}
-\SetWatermarkScale{8}
+\SetWatermarkScale{4}
 
 \usepackage[english]{babel}
 
@@ -55,29 +57,57 @@ a standardization proposal}
 
 For many decades Sixel and ReGIS have been the only image protocols for terminal emulators.
 While both are ancient and not even widely implemented, newer generations of people are used
-to seeing images and even emojis everywhere.
+to seeing images and even emoji everywhere.
 Those people may eventually touch a virtual terminal emulator and expect to be it no different
-than what they are used to in other software systems.
+than what they are used to from other software systems.
+\todo{What about Tektronix?}
 
-There is growing interest in both of these fields, and thus, many virtual terminal emulator
-developers, 30 to 40 years later, have started implementing their own proprietary protocols
-for displaying images as Sixel was simply not state of the art anymore.
+There is a growing interest in displaying images in todays
+virtual terminal emulators.
 
-While this is positive, it also leads to fragmentation in the ecosystem because application
-developers do not know what to support in case they intend to display images.
-This specification attempts to unify all those image protocols - not as a superset, but rather
-as a largest common denominator, with implementation adaptability on both ends - terminal and
-application side.
+Since these protocols are were not designed with todays needs in mind,
+virtual terminal emulaor developers have started implementing their own
+proprietary protocols for displaying images as Sixel and related
+were simply not state of the art anymore.
 
+While this is positive, it also leads to fragmentation in the ecosystem
+because application developers do not know what to support in case they intend
+to display images in their client applications.
+
+There is also recently a late resurrection of the Sixel bitmap protocol
+to be implemented by some terminal emulators and library developers,
+however, none of them is 100\% conforming to how Sixel used to work 40 years ago,
+as there is no easy way to access the hardware they were implemented on
+and also xterm does not implement every aspect of Sixel.
+
+This specification attempts to unify all those image protocols and addresses
+some of the issues, not as a superset, but rather as a largest common denominator,
+with implementation adaptability in mind.
+% }}}
+\section{Terminology} % {{{
+\begin{itemize}
+    \item \textbf{screen cell}; a rectanglular area of the screen that can contain a character with
+        its graphics rendition or an image fragment
+    \item \textbf{image fragment}; a rectanglular tile of an image that perfectly fits into a screen cell
+    \item \textbf{image storage pool}; a backing store for images received for future operations
+\end{itemize}
+\todo{more terminology to add?}
 % }}}
 \section{Prior art and current state} % {{{
 
 Prior art of image protocols for terminals are as follows:
 
+\subsection{Tektronix}
+
+\begin{itemize}
+    \item First appeared in 1970s
+    \item Tektronix 4010 series was a family of text-and-graphics computer terminals based on storage-tube technology created by Tektronix.
+\end{itemize}
+
 \subsection{DEC ReGIS graphics}
 
 \begin{itemize}
-    \item First appeared in 1981
+    \item First appeared in VT125, in July 1981
     \item vector graphics based
     \item implemented by: xterm
 \end{itemize}
@@ -85,7 +115,7 @@ Prior art of image protocols for terminals are as follows:
 \subsection{Sixel graphics}
 
 \begin{itemize}
-    \item Sixel grpahics first appeared in VT330/VT340 specifications that seems to be published in 1988.
+    \item Sixel grpahics first appeared in LA50 dot-matrix printers (1983) and short after in the VT240 in Oktober 1983.
     \item It is pixel based and positions the graphics cursor in a way it is most optimal for dot printers,
         that could print 6 pixels in height per line.
     \item Specialized image format optimized for 6-pin printers.
@@ -107,11 +137,13 @@ Prior art of image protocols for terminals are as follows:
 
 \subsection{Terminology image protocol}
 
+Terminology's image protocol is rather a media transport protocol as it
+can also be used to render animations, including videos.
+
 \begin{itemize}
-    \item First appeared in ... \todo{When did Terminology's image protocol first appear?}
-    \item Very hard to find anything out about the underlying transmission protocol.
-    \item Seems to be file based.
-    \item No specification available.
+    \item First appeared in June, 2012.
+    \item Uses VT sequences inspired by Xterm's sequence extensions.
+    \item Specification is in the source code repository's \texttt{README.md} file.
 \end{itemize}
 
 \subsection{Kitty image protocol}
@@ -194,17 +226,18 @@ that older implementations can still work while safely ignoring any new paramete
 % }}}
 \section{Terminal Emulator Requirements} % {{{
 
-This is the list of resource requirements that must be guaranteed by the virtual terminal emulator.
+This is the list of resource requirements that must be guaranteed
+by the virtual terminal emulator.
 
 \begin{enumerate}
     \item at least 32 images displayable concurrently
-    \item at least 4 MB per image uncompressed
+          (given enough grid cells are available)
+    \item at least 4 MB per image uncompressed (RGBA8888)
     \item at least 128 MB per storage pool (\(4 * 32\))
 \end{enumerate}
 
 Upper limits must be present for security reasons but can be varying by implementation.
 
-\todo{Have the ability to query resource limits?}
 \todo{What should happen when the number of images an application wants
       to display is higher than the limit?}
 
@@ -216,6 +249,7 @@ TBD.
 % }}}
 \section{Security Considerations} % {{{
 
+\todo{Here be dragons.}
 \begin{itemize}
     \item image upload spamming
     \item huge image Uploads
@@ -233,16 +267,16 @@ Uploads an image for future render operations.
 \subsubsection*{Parameters}
 
 \begin{tabular}{|l|l|l|}
-    \hline
-    \textbf{parameter name} & \textbf{default} & \textbf{description} \\
-    \hline
-    \textbf{name}       & & a unique identifier for the uploaded image \\
-    \textbf{format}     & RGBA & a value that determines the image format. \\
-                        & & See section \ref{sec:supported-image-formtats} for available image formats \\
-    \textbf{width}      & & optional pixel width of the given image (only required for RGB/RGBA format) \\
-    \textbf{height}     & & optional pixel height of the given image (only required for RGB/RGBA format) \\
-    \textbf{data}       & & image data in the given input format \\
-    \hline
+  \hline
+  \textbf{parameter name} & \textbf{default} & \textbf{description} \\
+  \hline
+  \textbf{name}           &                  & a unique identifier for the uploaded image \\
+  \textbf{format}         & RGBA             & a value that determines the image format. \\
+                          &                  & See section \ref{sec:supported-image-formtats} for available image formats \\
+  \textbf{width}          &                  & optional pixel width of the given image (only required for RGB/RGBA format) \\
+  \textbf{height}         &                  & optional pixel height of the given image (only required for RGB/RGBA format) \\
+  \textbf{data}           &                  & image data in the given input format \\
+  \hline
 \end{tabular}
 
 \subsubsection{Idempotency}
@@ -261,18 +295,23 @@ the host may choose to actively evict images in FIFO-order until the new image f
 
 If the image is larger than the allowed storage size, the upload will fail.
 
-Evicted images that were still held in screen cells may display a unicode object replacement
-codepoint (U+FFFC) or an empty cell.
+Evicted images that were still held in screen cells may display a
+unicode object replacement codepoint (U+FFFC) or an empty cell.
+\todo{Can this even happen? Due to ref-counting it should not.}
 
-Displaying an image results in incrementing the reference counter by the number of screen cells
-that are holding fragments of the image.
+Displaying an image results in incrementing the reference counter
+by the number of screen cells that are holding fragments of the image.
 
-Clearing a screen cell holding an image fragment (e.g. by overwriting or deleting its contents)
-will decrement the image reference counter.
+Clearing a screen cell holding an image fragment (e.g. by overwriting
+or deleting its contents) will decrement the image reference counter.
 
 When no screen cell is holding a reference to the image,
 the corresponding reference counter should be either 1 (if uploaded in a separate step)
 or 0 (if uploaded within the render instruction).
+% ^^^ does this make sense to be mentioned here?
+% a named image upload initializes the blob ref count to 1 (for the named reference)
+% whereas the blob also has a refcount of 1 when oneshotting,
+% because the one reference comes from the image-display action.
 
 Releasing the image by its name will remove the name-to-image association, and thus,
 decrement its reference counter.
@@ -635,17 +674,25 @@ Syntax: \DA
 \DA's response code for detecting support for an implementation of this specification is \code{11}.
 
 % }}}
-\section{Support Image Formats} % {{{
+\section{Supported Image Formats} % {{{
 
 \label{sec:supported-image-formtats}
 
 \begin{tabular}{c | c | l}
     File Format & Identifier & Description \\ \hline
-    RGB & 1 & raw RGB data with each color component being of size 1 byte. \\
-    RGBA & 2 & raw RGBA data, just like RGB, but with an alpha channel. \\
-    PNG & 3 & PNG file format \\
+    RGB         & 1          & raw RGB data with each color component being of size 1 byte. \\
+    RGBA        & 2          & raw RGBA data, just like RGB, but with an alpha channel. \\
+    PNG         & 3          & PNG file format \\
 \end{tabular}
 
+% }}}
+\section{Future Modifications} % {{{
+
+Possible future modifications could (but do not have to) cover:
+
+\begin{itemize}
+    \item Query, set and reset resource limits.
+\end{itemize}
 % }}}
 \section{References} % {{{
 
@@ -659,8 +706,7 @@ Syntax: \DA
     \item \label{ref:image-kitty}Kitty's image protocol, \url{https://sw.kovidgoyal.net/kitty/graphics-protocol.html}
 \end{enumerate}
 % }}}
-
-\section{Editorial Notes}
+\section{Editorial Notes} % {{{
 
 \begin{itemize}
     \item Maybe use tables instead of lists for parameter listings?
@@ -671,6 +717,7 @@ Syntax: \DA
         a pixel perfect rendering is attempted (resize-policy set to NoResize,
         screen-cols=\$COLUMNS). But what is row count?
 \end{itemize}
+% }}}
 
 \listoftodos
 
