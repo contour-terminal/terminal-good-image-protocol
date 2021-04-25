@@ -183,6 +183,22 @@ of terminal users, as well as simple enough to be widely accepted and adopted on
 as well as client side, yet allowing future extensions to this protocol
 without breaking compatibility to existing implementations.
 
+\subsection{DomTerm's inline image support}
+
+\begin{itemize}
+    \item DomTerm's image support appeared in 2016.
+    \item No explicit image protocol but a "insert HTML"-protocol that does support images.
+    \item Specification is in the source code repository's \texttt{README.md} file.
+\end{itemize}
+
+The typical way to insert an image is to insert an HTML <img> element,
+with the src attribute using a data: URL scheme,
+with the actual data inline as base64.
+
+Any image format supported by the underlying browser engine is allowed.
+
+The \texttt{<img>} element can contain attributes such as width, height, alt
+and options to add scrollbars.
 % }}}
 \section{Requirements} % {{{
 
@@ -702,7 +718,7 @@ Possible future modifications could (but do not have to) cover:
     \item \label{ref:twg-gip}Good Image Protocol, \url{https://gitlab.freedesktop.org/terminal-wg/specifications/-/issues/26}
     \item \label{ref:image-sixel}Sixel Image Protocol, \url{https://vt100.net/docs/vt3xx-gp/chapter14.html}
     \item \label{ref:image-item2}iTerm2's image protocol, \url{https://iterm2.com/documentation-images.html}
-    \item \label{ref:image-terminology}Terminology's image protocol, \url{https://www.enlightenment.org/docs/apps/terminology.md} \todo{Terminology image protocol spec not found. ;-(}
+    \item \label{ref:image-terminology}Terminology's image protocol, \url{https://github.com/borisfaure/terminology/blob/master/README.md#available-commands}
     \item \label{ref:image-kitty}Kitty's image protocol, \url{https://sw.kovidgoyal.net/kitty/graphics-protocol.html}
 \end{enumerate}
 % }}}
