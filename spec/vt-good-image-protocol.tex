@@ -128,7 +128,7 @@ Prior art of image protocols for terminals are as follows:
 \begin{itemize}
     \item Can associate a file name (Base64 encoded) to the rendered image.
     \item Image display size can be pixel based as well as cell based.
-    \item Also has the ability to address the with and hight relative to the terminal window size.
+    \item Also has the ability to address the width and height relative to the terminal window size.
     \item Image data is Base64 encoded.
 \end{itemize}
 
@@ -169,10 +169,10 @@ can also be used to render animations, including videos.
 \end{itemize}
 
 None of the above image protocols are a good candiate. iTerm2's image protocol is very simple and
-can be rendered by specifying screen cell sizes instead of relying on pixels, but lags some
+can be rendered by specifying screen cell sizes instead of relying on pixels, but lacks some
 flexibility.
 
-Kitty image protocol on the other hand does provide very good flexibility but is a way too complex which
+Kitty image protocol on the other hand does provide very good flexibility but is way too complex which
 would hinder broader adoptability and conforming implementations. There is also an added complexity
 (such as support for Z-axis) and the ability to send images in a way that does not work trivially
 when the terminal is connected to remote clients (such as via SSH). This all seems to hinder
