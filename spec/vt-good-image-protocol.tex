@@ -276,6 +276,15 @@ TBD.
 % }}}
 \section{Semantics} % {{{
 
+\subsection{Feature Detection} % {{{
+
+\DA is already used to advertise terminal features, including sixel graphics, and thus,
+it does make sense to be used to also advertise the availability of \GoodImageProtocol.
+
+There is some improved feature detection specification work ongoing,
+so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
+
+% }}}
 \subsection{Upload Image} % {{{
 
 Uploads an image for future render operations.
@@ -470,15 +479,6 @@ Existing rendered images are not affected by this operation.
     \textbf{name}       & & a unique identifier of the uploaded image \\
     \hline
 \end{tabular}
-
-% }}}
-\subsection{Feature Detection} % {{{
-
-\DA is already used to advertise terminal features, including sixel graphics, and thus,
-it does make sense to be used to also advertise the availability of \GoodImageProtocol.
-
-There is some improved feature detection specification work ongoing,
-so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
 
 % }}}
 \subsection{Interoperability with other VT sequences} % {{{
