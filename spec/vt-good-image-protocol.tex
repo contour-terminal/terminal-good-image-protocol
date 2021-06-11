@@ -38,7 +38,7 @@ a standardization proposal}
 
 \newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
 
-\newcommand{\DA}{\code{DA}}
+\newcommand{\DA}{\code{DA1}}
 \newcommand{\DECRQM}[1]{\code{CSI ? #1 \$ p}}
 \newcommand{\DECRST}[1]{\code{CSI ? #1 l}}
 \newcommand{\DECSET}[1]{\code{CSI ? #1 h}}
@@ -58,7 +58,7 @@ a standardization proposal}
 For many decades Sixel and ReGIS have been the only image protocols for terminal emulators.
 While both are ancient and not even widely implemented, newer generations of people are used
 to seeing images and even emoji everywhere.
-Those people may eventually touch a virtual terminal emulator and expect to be it no different
+Those people may eventually touch a virtual terminal emulator and expect it to be no different
 than what they are used to from other software systems.
 \todo{What about Tektronix?}
 
@@ -66,23 +66,30 @@ There is a growing interest in displaying images in todays
 virtual terminal emulators.
 
 Since these protocols are were not designed with todays needs in mind,
-virtual terminal emulaor developers have started implementing their own
+virtual terminal emulator developers have started implementing their own
 proprietary protocols for displaying images as Sixel and related
 were simply not state of the art anymore.
 
 While this is positive, it also leads to fragmentation in the ecosystem
 because application developers do not know what to support in case they intend
-to display images in their client applications.
+to display images in their client applications, and even new terminal emulator
+developers don't know what protocol to implement.
 
-There is also recently a late resurrection of the Sixel bitmap protocol
-to be implemented by some terminal emulators and library developers,
-however, none of them is 100\% conforming to how Sixel used to work 40 years ago,
+There is also a recent resurrection of the Sixel bitmap protocol
+to be implemented by some terminal emulator
+\footnote{Alacritty, Contour, gnome-terminal, iTerm2, wezterm, xterm.js}
+and library \footnote{notcurses} developers,
+however, none of them is 100\% conforming to how Sixel used to work 50 years ago,
 as there is no easy way to access the hardware they were implemented on
 and also xterm does not implement every aspect of Sixel.
 
 This specification attempts to unify all those image protocols and addresses
 some of the issues, not as a superset, but rather as a largest common denominator,
-with implementation adaptability in mind.
+with usability, simplicity, and implementation adaptability in mind and
+is also an attempt to formalize what was written down in \ref{ref:twg-gip},
+which can be seen as a conclusion of many discussions that happened scattered
+across different forums on the topic of a future image protocol.
+
 % }}}
 \section{Terminology} % {{{
 \begin{itemize}
@@ -91,7 +98,9 @@ with implementation adaptability in mind.
     \item \textbf{image fragment}; a rectanglular tile of an image that perfectly fits into a screen cell
     \item \textbf{image storage pool}; a backing store for images received for future operations
 \end{itemize}
+
 \todo{more terminology to add?}
+
 % }}}
 \section{Prior art and current state} % {{{
 
@@ -123,17 +132,10 @@ Prior art of image protocols for terminals are as follows:
     \item implemented by: xterm, mlterm, wezterm, contour, VTE
 \end{itemize}
 
-\subsection{iTerm2 image protocol}
-
-\begin{itemize}
-    \item Can associate a file name (Base64 encoded) to the rendered image.
-    \item Image display size can be pixel based as well as cell based.
-    \item Also has the ability to address the width and height relative to the terminal window size.
-    \item Image data is Base64 encoded.
-\end{itemize}
-
-\todo{When was iTerm2 image protocol first introduced?}
-\todo{iTerm2 supported image formats?}
+This protocol only understands pixels and thus is dependant on the
+configured font size and screen resolution of the terminal, which
+terminal emulators seem to have solved differently and therefore cannot
+be relied on.
 
 \subsection{Terminology image protocol}
 
@@ -146,6 +148,40 @@ can also be used to render animations, including videos.
     \item Specification is in the source code repository's \texttt{README.md} file.
 \end{itemize}
 
+\subsection{iTerm2 image protocol}
+
+\begin{itemize}
+    \item First introduced in 2014 with documentation added in 2015.
+    \item Can associate a file name (Base64 encoded) to the rendered image.
+    \item Image display size can be pixel based as well as cell based.
+    \item Also has the ability to address the width and height relative to the terminal window size.
+    \item Image data is Base64 encoded.
+    \item Any image format that macOS supports will are supported by iTerm2's image protocol,
+        including PDF, PICT, EPS, or any number of bitmap data formats (PNG, GIF, etc.).
+\end{itemize}
+
+The dependency on macOS for supported image formats makes it a little blurry
+specification also.
+
+\subsection{DomTerm's inline image support}
+
+\begin{itemize}
+    \item DomTerm's image support appeared in 2016.
+    \item No explicit image protocol but a "insert HTML"-protocol that does support images.
+    \item Specification is in the source code repository's \texttt{README.md} file.
+\end{itemize}
+
+The typical way to insert an image is to insert an HTML <img> element,
+with the src attribute using a data: URL scheme,
+with the actual data inline as base64.
+
+Any image format supported by the underlying browser engine is allowed.
+
+The \texttt{<img>} element can contain attributes such as width, height, alt
+and options to add scrollbars.
+
+The tight integration to the browser makes it hard to be adopted by native
+terminals.
 \subsection{Kitty image protocol}
 
 \begin{itemize}
@@ -173,32 +209,19 @@ can be rendered by specifying screen cell sizes instead of relying on pixels, bu
 flexibility.
 
 Kitty image protocol on the other hand does provide very good flexibility but is way too complex which
-would hinder broader adoptability and conforming implementations. There is also an added complexity
-(such as support for Z-axis) and the ability to send images in a way that does not work trivially
-when the terminal is connected to remote clients (such as via SSH). This all seems to hinder
+would hinder broader adoptability and conforming implementations, potentially leading to partial
+implementations and thus fragmentation.
+There is also an added complexity (such as support for Z-axis) and the ability
+to send images in a way that does not work trivially when the terminal is
+connected to remote clients (such as via SSH). This all seems to hinder
 adopting a otherwise very flexible image protocol.
 
-The \GoodImageProtocol specification aims to be future proof with regards to the young generation
-of terminal users, as well as simple enough to be widely accepted and adopted on the terminal side
-as well as client side, yet allowing future extensions to this protocol
+The \GoodImageProtocol specification aims to be future proof with regards to
+the young generation of terminal users, as well as being simple enough
+to be widely accepted and adopted on the terminal side as well as client side,
+yet allowing future extensions to this protocol
 without breaking compatibility to existing implementations.
 
-\subsection{DomTerm's inline image support}
-
-\begin{itemize}
-    \item DomTerm's image support appeared in 2016.
-    \item No explicit image protocol but a "insert HTML"-protocol that does support images.
-    \item Specification is in the source code repository's \texttt{README.md} file.
-\end{itemize}
-
-The typical way to insert an image is to insert an HTML <img> element,
-with the src attribute using a data: URL scheme,
-with the actual data inline as base64.
-
-Any image format supported by the underlying browser engine is allowed.
-
-The \texttt{<img>} element can contain attributes such as width, height, alt
-and options to add scrollbars.
 % }}}
 \section{Requirements} % {{{
 
@@ -246,16 +269,11 @@ This is the list of resource requirements that must be guaranteed
 by the virtual terminal emulator.
 
 \begin{enumerate}
-    \item at least 32 images displayable concurrently
-          (given enough grid cells are available)
+    \item at least 32 images concurrently
     \item at least 4 MB per image uncompressed (RGBA8888)
-    \item at least 128 MB per storage pool (\(4 * 32\))
 \end{enumerate}
 
 Upper limits must be present for security reasons but can be varying by implementation.
-
-\todo{What should happen when the number of images an application wants
-      to display is higher than the limit?}
 
 % }}}
 \section{Performance Considerations} % {{{
@@ -265,24 +283,45 @@ TBD.
 % }}}
 \section{Security Considerations} % {{{
 
-\todo{Here be dragons.}
 \begin{itemize}
-    \item image upload spamming
-    \item huge image Uploads
-    \item invalid image Uploads
-    \item invalid image render requests (such as out of bounds in offsetted-renders)
+    \item image upload spamming - should be avoidable by a meaningful limit
+        on how many images can be uploaded at the same time.
+        Exceeding the limit will result in evicting older images in FIFO order,
+        leading to dangling image fragments, as their related image has been
+        evicted. A placeholder or an empty screen cell will be displayed instead.
+    \item huge image uploads - should be avoidable by limiting the number
+        of pixels an image can take.
+    \item invalid image uploads - a terminal proxy (such as tmux) do not
+        implicitly need to validate image formats as they are usually just
+        forwarding the blobs to the connected terminal. A non-proxying
+        terminal however will validate implicitly by loading the specified
+        file format.
+    \item invalid image render requests (such as out of bounds in offsetted-renders) -
+        invalid named images will just not be displayed.
+        Overextending dimensions will be displayed but result in cut-of images.
 \end{itemize}
 
 % }}}
 \section{Semantics} % {{{
-
 \subsection{Feature Detection} % {{{
 
-\DA is already used to advertise terminal features, including sixel graphics, and thus,
-it does make sense to be used to also advertise the availability of \GoodImageProtocol.
+\DA is already used to advertise terminal features, including Sixel graphics, and thus,
+\DA is also used to advertise \GoodImageProtocol support, for consistency.
 
 There is some improved feature detection specification work ongoing,
 so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
+
+% }}}
+\subsection{Querying Resource Limits} % {{{
+
+Resource limits must be queryable whilest the requirements must be met.
+Every resource requirement also has a limit at exactly
+the value of the requirement or above, and must be queryable
+
+\begin{itemize}
+    \item number of images displayable concurrently (visible or not visible)
+    \item number of uncompressed pixels (RGBA8888) an a single image can take at most.
+\end{itemize}
 
 % }}}
 \subsection{Upload Image} % {{{
@@ -293,57 +332,29 @@ Uploads an image for future render operations.
 
 \begin{tabular}{|l|l|l|}
   \hline
-  \textbf{parameter name} & \textbf{default} & \textbf{description} \\
+  \textbf{parameter name} & \textbf{description} \\
   \hline
-  \textbf{name}           &                  & a unique identifier for the uploaded image \\
-  \textbf{format}         & RGBA             & a value that determines the image format. \\
-                          &                  & See section \ref{sec:supported-image-formtats} for available image formats \\
-  \textbf{width}          &                  & optional pixel width of the given image (only required for RGB/RGBA format) \\
-  \textbf{height}         &                  & optional pixel height of the given image (only required for RGB/RGBA format) \\
-  \textbf{data}           &                  & image data in the given input format \\
+  \textbf{name}           & a unique identifier for the uploaded image \\
+  \textbf{format}         & a value that determines the image format. \\
+                          & See section \ref{sec:supported-image-formtats} for available image formats \\
+  \textbf{width}          & optional pixel width of the given image
+                            (only required if this information is not provided
+                            inline via the \textbf{data} field) \\
+  \textbf{height}         & optional pixel height of the given image
+                            (only required if this information is not provided
+                            inline via the \textbf{data} field) \\
+  \textbf{data}           & image data in the specified input format \\
   \hline
 \end{tabular}
 
 \subsubsection{Idempotency}
 
-Image upload can be implemented to be idempotent, i.e. the storage pool keeps an internal hash
-of each image that is automatically constructed upon image upload.
+Image upload can be implemented to be idempotent, but don't have to,
+i.e. the storage pool keeps an internal hash of each image that is
+automatically constructed upon image upload.
+
 If the image was already uploaded, that image's reference count is incremented
 and in case it is a named resource, that one will point to that existing one.
-
-\subsubsection{Storage Management}
-
-Uploaded images are reference counted. Uploading a named image will initialize its reference count to 1.
-
-When uploading an image would exceed the storage pool's guarantees,
-the host may choose to actively evict images in FIFO-order until the new image fits.
-
-If the image is larger than the allowed storage size, the upload will fail.
-
-Evicted images that were still held in screen cells may display a
-unicode object replacement codepoint (U+FFFC) or an empty cell.
-\todo{Can this even happen? Due to ref-counting it should not.}
-
-Displaying an image results in incrementing the reference counter
-by the number of screen cells that are holding fragments of the image.
-
-Clearing a screen cell holding an image fragment (e.g. by overwriting
-or deleting its contents) will decrement the image reference counter.
-
-When no screen cell is holding a reference to the image,
-the corresponding reference counter should be either 1 (if uploaded in a separate step)
-or 0 (if uploaded within the render instruction).
-% ^^^ does this make sense to be mentioned here?
-% a named image upload initializes the blob ref count to 1 (for the named reference)
-% whereas the blob also has a refcount of 1 when oneshotting,
-% because the one reference comes from the image-display action.
-
-Releasing the image by its name will remove the name-to-image association, and thus,
-decrement its reference counter.
-
-Uploading a new image with an already used name will first release the old name-to-image association
-as mentioned earlier and then register the new image with its name. This will not cause
-any visible side effects - existing image fragments to the old image will not be touched.
 
 % }}}
 \subsection{Render Image} % {{{
@@ -481,47 +492,99 @@ Existing rendered images are not affected by this operation.
 \end{tabular}
 
 % }}}
+\subsection{Storage Management} % {{{
+
+Uploaded images are reference counted.
+Uploading a named image will associate the uploaded image with the specified
+name and initialize the image's reference count to 1.
+
+When uploading an image would exceed the storage pool's guarantees,
+the host may choose to actively evict images in FIFO-order until the new image fits.
+
+If the image is larger than the allowed storage size, the upload will fail.
+
+Evicted images that were still held in screen cells will
+either display a image placeholder or an empty screen cell.
+
+Displaying an image results in incrementing the reference counter
+by the number of screen cells that are holding fragments of the image.
+
+Clearing a screen cell holding an image fragment (e.g. by overwriting
+or deleting its contents) will decrement the image reference count of
+the prior referenced image.
+
+When no screen cell is holding a reference to the image,
+the corresponding reference counter should be either 1 (if uploaded in a separate step)
+or 0 (if uploaded within the render instruction).
+% ^^^ does this make sense to be mentioned here?
+% a named image upload initializes the blob ref count to 1 (for the named reference)
+% whereas the blob also has a refcount of 1 when oneshotting,
+% because the one reference comes from the image-display action.
+
+Releasing the image by its name will remove the name-to-image association, and thus,
+decrement its reference counter.
+
+Uploading a new image with an already used name will first release the old name-to-image association
+as mentioned earlier and then register the new image with its name. This will not cause
+any visible side effects - existing image fragments to the old image will not be touched.
+
+
+% }}}
 \subsection{Interoperability with other VT sequences} % {{{
 
-\subsubsection*{Clearing the screen}
+Text and images are mutually exclusive objects, and therefore,
+a screen cell either holds text or an image, but not both.
 
-VT sequences (such as \code{CSI Ps J}) that reset at least the textual contents of the screen cells will also
-clear their image fragment referencing an underlying image, possibly also releasing the
-underlying image(s) from the image storage pool when their reference count goes down to zero.
-
-\subsubsection*{Primary and alternate screen}
-
-Alternate screen and primary screen maintain both their own image storage pool.
-
-When leaving the alternate screen, its image storage pool gets cleared too.
+This property makes image cells compatible to all cell operational VT sequences.
 
 \subsubsection*{Screen cell characters and image tiles}
 
 Image fragments and characters in a screen cell are mutually exclusive.
-Therefore, when an image is being rendered into a grid cell, it is replacing the graphics rendition and
-character information, except for background color that may be used when filling the padding pixels.
+Therefore, when an image is being rendered into a screen cell,
+it is replacing textual information.
 
-If reverse-video is enabled, foreground color becomes the background color for the padding pixels.
-
-Analogous, when a character is placed into a screen cell that previously contained an image
-fragment, this image fragment is being replaced by the character.
+Analogous, when a character is placed into a screen cell that previously
+contained an image fragment, this image fragment is being replaced by the
+character.
 
 \subsubsection*{Image alpha channel and graphics rendition background color}
 
-Images with an alpha channel will blend into the graphics renditions background color of that cell
-analogous to how padding pixel color is applied for image fragments.
+Images with an alpha channel will blend into the graphics renditions
+background color (respecting reverse-video attribute) of that cell analogous
+to how padding pixel color is applied for image fragments.
 
 \subsubsection*{Hyperlinks}
 
-If the terminal emulator supports hyperlinks and the application has initiated a hyperlink, followed
-by rendering an image, the whole rendered image becomes hyperlinked, analogous to how hyperlinks
-are applied to text.
+If the terminal emulator supports hyperlinks and the application has initiated
+a hyperlink, followed by rendering an image, the whole rendered image becomes
+hyperlinked, analogous to how hyperlinks are applied to text.
 
 \subsubsection*{Text reflow}
 
 Text reflow is supported only inconsistently across a few terminals. Therefore this
-specification does not attempt to address this for images. When text reflow is going to
-be formally specified it must then also address images.
+specification does not attempt to address this for images.
+Therefore image cells behave just like text cells,
+potentially wrapping on shrink and eventually merging back when regrown.
+
+When text reflow is going to be formally specified it must then also address images.
+
+\subsubsection*{Clearing the screen}
+
+VT sequences (such as \code{CSI Ps J}) that reset at least the textual contents
+of the screen cells will, because of the mutual exclusion stated above, also
+clear their image fragment referencing an underlying image,
+possibly also releasing the underlying image(s) from the image storage pool
+when their reference count has reached zero.
+
+\subsubsection*{Primary and alternate screen}
+
+Alternate screen and primary screen maintain both a shared image storage pool.
+
+When leaving the alternate screen, all image cells are getting cleared at the
+same time in order to reduce resource pressure at the earliest point possible.
+
+This is different from text and SGR attributes, which will be cleared when
+entering the alternate buffer.
 
 % }}}
 
@@ -532,6 +595,7 @@ This section maps each semantic action to actual VT sequences.
 
 \subsection{DCS Message Format}
 
+\todo{Many people prefer OSC over DCS due to ancient terminal emulators}
 \todo{message format spec}
 
 TBD. Describe the Message format here that is being implemented in MessageParser.\{h,cpp\}.
