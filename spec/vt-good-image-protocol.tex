@@ -276,7 +276,7 @@ TBD.
 % }}}
 \section{Semantics} % {{{
 
-\subsection{Upload Image}
+\subsection{Upload Image} % {{{
 
 Uploads an image for future render operations.
 
@@ -336,7 +336,8 @@ Uploading a new image with an already used name will first release the old name-
 as mentioned earlier and then register the new image with its name. This will not cause
 any visible side effects - existing image fragments to the old image will not be touched.
 
-\subsection{Render Image}
+% }}}
+\subsection{Render Image} % {{{
 
 Renders an image that has been previously uploaded.
 The image will be rendered with the top-left matching the current ANSI cursor position.
@@ -419,7 +420,8 @@ Reverse video mode mode (\code{DECSCNM}) will affect the padding color but not t
     \hline
 \end{tabular}
 
-\subsection{Upload and Render Image}
+% }}}
+\subsection{Upload and Render Image} % {{{
 
 This uploads and renders the image via a single VT sequence. Therefore no image Id
 is required and there won't be any way to reference that image after either.
@@ -452,7 +454,8 @@ The cursor will not be moved by this operation.
 \todo{Specify how auto-scroll can be achieved in primary screen for Render and Upload-and-Render actions.}
 \todo{Should auto-scroll be only possible in primary screen?}
 
-\subsection{Release Image}
+% }}}
+\subsection{Release Image} % {{{
 
 Removes the mapping of the name to the image in a storage pool.
 This will cause decrementing the use-count of the previously uploaded image.
@@ -468,7 +471,8 @@ Existing rendered images are not affected by this operation.
     \hline
 \end{tabular}
 
-\subsection{Feature Detection}
+% }}}
+\subsection{Feature Detection} % {{{
 
 \DA is already used to advertise terminal features, including sixel graphics, and thus,
 it does make sense to be used to also advertise the availability of \GoodImageProtocol.
@@ -476,7 +480,8 @@ it does make sense to be used to also advertise the availability of \GoodImagePr
 There is some improved feature detection specification work ongoing,
 so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
 
-\subsection{Interoperability with other VT sequences}
+% }}}
+\subsection{Interoperability with other VT sequences} % {{{
 
 \subsubsection*{Clearing the screen}
 
@@ -517,6 +522,8 @@ are applied to text.
 Text reflow is supported only inconsistently across a few terminals. Therefore this
 specification does not attempt to address this for images. When text reflow is going to
 be formally specified it must then also address images.
+
+% }}}
 
 % }}}
 \section{Syntax} % {{{
