@@ -378,6 +378,7 @@ The cursor will not be moved by this operation.
     \textbf{image-y-offset} & 0 & start rendering at the given pixel y-offset cell of the image \\
     \textbf{image-width}    & screen-rows & optional, number of pixels of the image's width to display \\
     \textbf{image-height}   & screen-cols & number of pixels of the image's height to display \\
+    \textbf{static-cursor}  & false & optional, tells the terminal to not move the cursor after having the image rendered \\
     \textbf{status}         & false & request a success/failure status response code from the terminal \\
         & & If value is true, a response is sent back to the application \\
         & & to indicate success or failure. \\
@@ -673,6 +674,7 @@ Syntax: \code{DCS r <message> ST}
       &                 & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
       &                 & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
       &                 & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    t & static-cursor   & boolean indicating to not move the cursor \\
     s & status          & one of: 1 (request status response), 0 otherwise \\
     \hline
 \end{tabular}
