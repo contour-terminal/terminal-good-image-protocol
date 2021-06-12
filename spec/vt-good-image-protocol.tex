@@ -269,7 +269,7 @@ This is the list of resource requirements that must be guaranteed
 by the virtual terminal emulator.
 
 \begin{enumerate}
-    \item at least 32 images concurrently
+    \item at least 64 images concurrently
     \item at least 4 MB per image uncompressed (RGBA8888)
 \end{enumerate}
 
@@ -320,7 +320,9 @@ the value of the requirement or above, and must be queryable
 
 \begin{itemize}
     \item number of images displayable concurrently (visible or not visible)
+        A recommendation for this limit would be 128 on terminals running on desktop computers.
     \item number of uncompressed pixels (RGBA8888) an a single image can take at most.
+        A recommendation for this limit would be 8 MB on terminals running on desktop computers.
 \end{itemize}
 
 % }}}
@@ -594,7 +596,7 @@ entering the alternate buffer.
 
 This section maps each semantic action to actual VT sequences.
 
-\subsection{DCS Message Format}
+\subsection{DCS Message Format} % {{{
 
 \todo{Many people prefer OSC over DCS due to ancient terminal emulators}
 \todo{message format spec}
@@ -613,7 +615,10 @@ TBD. Describe the Message format here that is being implemented in MessageParser
     \item header names without a value reflect a boolean truth value
 \end{itemize}
 
-\subsection{Upload Image}
+\todo{Do we want to support multiple transport encodings while defaulting to Base64 if encoded?}
+
+% }}}
+\subsection{Upload Image} % {{{
 
 Syntax: \code{DCS u <message> ST}
 
@@ -651,7 +656,8 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
 
 \pagebreak
 
-\subsection{Render Image}
+% }}}
+\subsection{Render Image} % {{{
 
 Syntax: \code{DCS r <message> ST}
 
@@ -705,7 +711,8 @@ When a response status code was requested, the syntax will be as follows:
     }
 \end{verbatim}
 
-\subsection{Upload and Render Image}
+% }}}
+\subsection{Upload and Render Image} % {{{
 
 Syntax: \code{DCS <numerical parameters> s <payload> ST}
 
@@ -742,7 +749,8 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
     }
 \end{verbatim}
 
-\subsection{Release Image}
+% }}}
+\subsection{Release Image} % {{{
 
 Syntax: \code{DCS d <message> ST}
 
@@ -756,12 +764,14 @@ Syntax: \code{DCS d <message> ST}
     \hline
 \end{tabular}
 
-\subsection{Feature Detection}
+% }}}
+\subsection{Feature Detection} % {{{
 
 Syntax: \DA
 
 \DA's response code for detecting support for an implementation of this specification is \code{11}.
 
+% }}}
 % }}}
 \section{Supported Image Formats} % {{{
 
@@ -774,14 +784,24 @@ Syntax: \DA
     PNG         & 3          & PNG file format \\
 \end{tabular}
 
+\todo{I think it make sense to use mimetype as values instead?}
+
 % }}}
 \section{Future Modifications} % {{{
 
 Possible future modifications could (but do not have to) cover:
 
 \begin{itemize}
-    \item Query, set and reset resource limits.
+    \item Set and reset resource limits.
+    \item Query allocated resource names.
+    \item Query resource utilization.
+    \item Direct support of animations.
+    \item Different transport encodings (other than Base64).
+    \item Extending the use of uploaded images to also be used for application / window / tab icons.
+    \item Extending the use of uploaded images to terminal background.
+    \item Extending Image-Render with a z-axis to optional render on top or below text.
 \end{itemize}
+
 % }}}
 \section{References} % {{{
 
@@ -794,18 +814,29 @@ Possible future modifications could (but do not have to) cover:
     \item \label{ref:image-terminology}Terminology's image protocol, \url{https://github.com/borisfaure/terminology/blob/master/README.md#available-commands}
     \item \label{ref:image-kitty}Kitty's image protocol, \url{https://sw.kovidgoyal.net/kitty/graphics-protocol.html}
 \end{enumerate}
+
 % }}}
 \section{Editorial Notes} % {{{
 
 \begin{itemize}
     \item Maybe use tables instead of lists for parameter listings?
-    \item $0x3A$ \code{:} is not allowed in DCS, check that. Maybe all params should be name-based then ...
     \item Should we mention how to deal with HiDPI displays and content scaling?
-    \item How to implement a cat-like too for images without breaking determinism for proxy
-        terminals. I.e. how does the proxy terminal know about how many rows will be used when
+    \item How to implement a cat-like tool for images without breaking determinism for proxy
+        terminals (like tmux).
+        I.e. how does the proxy terminal know about how many rows will be used when
         a pixel perfect rendering is attempted (resize-policy set to NoResize,
         screen-cols=\$COLUMNS). But what is row count?
+        I think the only way to achieve that if that image-cat tool peaks into
+        the image dimensions and calculates a maybe perfect number of rows
+        based on that and the retrieved pixel height (which is not recommended though).
+    \item Do we want to deal with transparent pixels differently?
+    \item Is it \textbf{really} necessary to be able to render above/below text with preserving the
+        text? What is the real use case for that? (that would require the introduction of a z-axis).
+    \item If so, can images be layered, therefore can a cell have more than one image.
+        And what is happening if the above image is removed. Will the image below be shown?
+    \item Should SGRs be usable in screen cells showing image fragments?
 \end{itemize}
+
 % }}}
 
 \listoftodos
