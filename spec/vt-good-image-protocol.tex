@@ -609,6 +609,21 @@ a screen cell either holds text or an image, but not both.
 
 This property makes image cells compatible to all cell operational VT sequences.
 
+\subsubsection*{Cursor and margin}
+
+The cursor position respects
+\code{DECOM}\footnote{https://www.vt100.net/docs/vt510-rm/DECOM.html}
+margin and an image must not leave the current horizontal nor vertical margins
+when being rendered.
+The image gets clipped if it would render outside the margin.
+
+\subsubsection*{Screen modifying commands}
+
+All existing screen modifying VT sequences preserve their meanings.
+That is, commands such as
+\code{DECIC}\footnote{https://www.vt100.net/docs/vt510-rm/DECIC.html},
+and others will split the image in two halfs.
+
 \subsubsection*{Screen cell characters and image tiles}
 
 Image fragments and characters in a screen cell are mutually exclusive.
