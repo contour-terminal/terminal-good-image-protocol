@@ -686,6 +686,19 @@ entering the alternate buffer.
 
 This section maps each semantic action to actual VT sequences.
 
+Each command is using the \code{OSC} protocol with an embedded message as
+described below.
+
+In order to stay consistent to already existing \code{OSC}'s,
+the image commands below also reserve a numeric identifier the uniquely
+identify the message.
+
+The basic format is as follows:
+
+\code{OSC 314 ; <payload> ST}
+
+\todo{Unfinished text...}
+
 \subsection{Message Format} % {{{
 
 This message format helps sending arbitrary parametrized messages
@@ -739,7 +752,7 @@ Especially the message body might be useful to extend the limit for.
 % }}}
 \subsection{Upload Image} % {{{
 
-Syntax: \code{DCS u <message> ST}
+Syntax: \code{OSC 314 ; u ; <message> ST}
 
 The payload's format is mandated by the \code{fmt}'s value. However, since it must not contain
 any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
@@ -778,7 +791,7 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
 % }}}
 \subsection{Render Image} % {{{
 
-Syntax: \code{DCS r <message> ST}
+Syntax: \code{OSC 314 ; r ; <message> ST}
 
 \subsubsection*{Message parameters}
 
@@ -833,7 +846,7 @@ When a response status code was requested, the syntax will be as follows:
 % }}}
 \subsection{Upload and Render Image} % {{{
 
-Syntax: \code{DCS <numerical parameters> s <payload> ST}
+Syntax: \code{OSC 314 ; s ; <payload> ST}
 
 \subsubsection*{Numerical parameters}
 
@@ -871,7 +884,7 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
 % }}}
 \subsection{Release Image} % {{{
 
-Syntax: \code{DCS d <message> ST}
+Syntax: \code{OSC 314 ; d ; <message> ST}
 
 \subsubsection*{Message parameters}
 
