@@ -686,26 +686,55 @@ entering the alternate buffer.
 
 This section maps each semantic action to actual VT sequences.
 
-\subsection{DCS Message Format} % {{{
+\subsection{Message Format} % {{{
 
-\todo{Many people prefer OSC over DCS due to ancient terminal emulators}
-\todo{message format spec}
+This message format helps sending arbitrary parametrized messages
+as payload and issuitable for \code{DCS} and \code{OSC} payloads.
 
-TBD. Describe the Message format here that is being implemented in MessageParser.\{h,cpp\}.
+The message format is inspired by and trivialized as basic HTTP message like
+format with the following basic rules:
 
 \begin{itemize}
-    \item inspired by HTTP message protocol
-    \item optional sequence of headers and an optional body
-    \item header is a name and a value, delimited by equal symbol \code{=}
-    \item header sequence is delimited by comma symbol \code{,}
-    \item header sequence and body is delimited by semicolon \code{;}
-    \item header value and body can be base64 encoded by prepending \\
-        an exclamation mark at the beginning of the header's value or body.
+    \item A message is devided into two optional parts, i.e. a set of headers and the body part.
+    \item Headers and body are seperated by \code{;}.
+    \item Header entries are seperated by \code{,}.
+    \item Header name and value is seperated by \code{=}.
+    \item Duplicate header names will override the previousely declared ones.
+    \item header value and body can be optionally Base64 encoded by prepending \\
+        an exclamation mark (\code{!}) at the beginning of the header's value or body.
     \item superfluous commas in header seperation are ignored
-    \item header names without a value reflect a boolean truth value
+    \item header names without a value reflect a boolean truth value,
+        its \code{=} can therefore be omitted.
 \end{itemize}
 
-\todo{Do we want to support multiple transport encodings while defaulting to Base64 if encoded?}
+When this message format is used as payload for \code{OSC} commands, then
+the \code{OSC}'s payload will still need to contain the leading numeric
+number followed by a semicolon (\code{;}) in order to retain consistency
+with existing \code{OSC} implementations.
+
+\subsubsection*{Resource Requirements}
+
+These are the requirements a message parser must be able to process at least.
+There should always be a limit, too, which is implicitly at least as big as
+the here specified requirements.
+
+Especially the message body might be useful to extend the limit for.
+
+\begin{itemize}
+    \item 64 bytes for header name
+    \item 512 bytes for header value
+    \item 32 header pairs
+    \item 16 Megabyte for the body.
+\end{itemize}
+
+\subsubsection*{Examples}
+
+\begin{itemize}
+    \item \code{first=Foo,second=Bar;some body here}
+    \item \code{,first=Foo,second,,,another=value,also=;some body here}
+    \item \code{message=!SGVsbG8gV29ybGQ=} (no body, only one Base64 encoded header)
+    \item \code{;!SGVsbG8gV29ybGQ=} (no headers, only one Base64 encoded body)
+\end{itemize}
 
 % }}}
 \subsection{Upload Image} % {{{
