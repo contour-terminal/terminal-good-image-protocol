@@ -225,12 +225,14 @@ without breaking compatibility to existing implementations.
 % }}}
 \section{Requirements} % {{{
 
+This section lays down the principles and requirements of \GoodImageProtocol.
+
 \begin{enumerate}
     \item \textbf{Deterministic emulation} - The image rendering must not be affected by font size
         or similar properties nor on external API to make productive use of this protocol.
     \item \textbf{Synchronous operations by default} - No asynchronous operations unless explicitly requested.
-    \item \textbf{Remote-terminal capable} - No dependency on the local host, such as the local file system.
     \item \textbf{Preserve aspect ratio by default}
+    \item \textbf{Remote-terminal capable} - No dependency on the local host, such as the local file system.
     \item \textbf{Upload and Render seperation} - Image upload must be decoupled from image display
     \item \textbf{Support for rendering tiles of an image} - Adding the ability to only render tiles
         of an image greatly assists client applications when only rendering parts of an image is
@@ -238,7 +240,7 @@ without breaking compatibility to existing implementations.
     \item \textbf{Protocol forward-compatibility} - the protocol must be easily extendable in input
         parameters as well as reusability of the image storage pool
         (such as icon-display, desktop-notifications, background images)
-    \item \textbf{Feature detectability} - The image protocl must be easily detectable by well known techniques.
+    \item \textbf{Feature detectability} - The image protocol must be easily detectable with well known techniques.
 \end{enumerate}
 
 \paragraph*{}
@@ -246,7 +248,7 @@ without breaking compatibility to existing implementations.
 The document at [\ref{ref:twg-gip}] suggests cell based masking for rendering to help rendering more
 complex scenes such as in windowed TUI applications or terminal multiplexers with overlaying contents.
 However, the same can be achieved with a sequence of Image-Render commands specifying a
-sub-rectangle to be rendered of the referenced image.
+sub-rectangle (tiles) to be rendered of the referenced image.
 
 % }}}
 \section{Backwards Compatibility} % {{{
@@ -303,6 +305,73 @@ TBD.
 
 % }}}
 \section{Semantics} % {{{
+\subsection{The lifecycle of an image} % {{{
+
+While classically it should be allowed to just display images,
+with having the cursor moved, and forget about that one has rendered that
+image, it must also be possible to render the same image multiple times
+in an resource efficient time.
+
+Therefore concept of image display is broken up into multiple parts,
+by separating the image upload from the rendering step, so
+that the same image data can be reused in multiple render commands with
+the choice of either drawing the full image or just parts of it.
+The latter is important for toolkit developers to efficiently redraw
+patially overlapping images.
+
+\subsubsection*{Uploading the image} % {{{
+
+The command for uploading the image simply uploads the image.
+In order to make use of that previously uploaded image, a application-specific
+fully qualifying (and ideally unique) name is being passed.
+This name can be used in future commands to render, rerender the image
+either in its whole or parts of it.
+
+The link between the name and the uploaded image can be explicitly released,
+and then be reused by other image uploads while prior image uploads to that
+name are preserved.
+
+The image upload does not generate any visible output, but may optionally
+(not by default) reply to the application a success indication.
+
+% }}}
+\subsubsection*{Rendering the image} % {{{
+
+Rendering the image is done by referencing the previously uploaded
+image by its name and then telling the command where to render it
+in screen coordinates, with number of columns and number of lines to fill
+with that image. This can be seen similar to the `DECFRA` VT sequence
+that also fills a rectangular region with a fixed SGR, except
+that this command filles the rectangular area with an image instead.
+
+% }}}
+\subsubsection*{Releasing the image} % {{{
+
+When the image's referenced name is not needed anymore it must be released.
+This does not implicitly erase already rendered screen areas referencing the image.
+It purely disassociates the name with the image, eventually leading
+to resource eviction when no screen cell is holding a reference to the
+uploaded image anymore.
+
+% }}}
+\subsubsection*{Rendering the image only once} % {{{
+
+While the above is sufficient to efficiently operate with images in the terminal,
+there are usecases where an image needs to be rendered exactly once and
+seperating upload, render, and release stages is therefore unnecessary,
+such as simply putting the image onto the screen and have the cursor moved
+accordingly, so that it perfectly fits into the command flow of your primary screen.
+
+\textbf{iTerm2} is having such a special command, called \code{imgcat},
+there is also \code{lsix} to display images in the spirit of \code{ls},
+and there are similar tools for kitty's and terminology's protocol, too.
+
+\GoodImageProtocol must provide a command to make it trivial for application
+developers to achieve the same.
+
+% }}}
+
+% }}}
 \subsection{Feature Detection} % {{{
 
 \DA is already used to advertise terminal features, including Sixel graphics, and thus,
