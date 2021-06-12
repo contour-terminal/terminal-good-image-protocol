@@ -288,7 +288,7 @@ TBD.
 \begin{itemize}
     \item image upload spamming - should be avoidable by a meaningful limit
         on how many images can be uploaded at the same time.
-        Exceeding the limit will result in evicting older images in FIFO order,
+        Exceeding the limit will result in evicting ideally older images,
         leading to dangling image fragments, as their related image has been
         evicted. A placeholder or an empty screen cell will be displayed instead.
     \item huge image uploads - should be avoidable by limiting the number
@@ -570,13 +570,19 @@ Uploaded images are reference counted.
 Uploading a named image will associate the uploaded image with the specified
 name and initialize the image's reference count to 1.
 
-When uploading an image would exceed the storage pool's guarantees,
-the host may choose to actively evict images in FIFO-order until the new image fits.
+When uploading an image would exceed the storage pool limits,
+the host may choose to actively evict images.
+
+The recommendation here is to use FIFO for eviction,
+but this is not a mandatory algorithm.
+If a terminal author comes with a much smarter eviction policy implementation,
+that should not in FIFO-order until the new image fits.
 
 If the image is larger than the allowed storage size, the upload will fail.
 
 Evicted images that were still held in screen cells will
-either display a image placeholder or an empty screen cell.
+either display a image placeholder or an empty screen cell, neither
+is mandatory and free to chose by the terminal author.
 
 Displaying an image results in incrementing the reference counter
 by the number of screen cells that are holding fragments of the image.
