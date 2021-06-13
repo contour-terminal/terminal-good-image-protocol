@@ -20,12 +20,11 @@ jobs:
         run: |
           set -ex
           cd spec
-          pdflatex vt-good-image-protocol.tex
-          pdflatex vt-good-image-protocol.tex # second run
+          latexmk -pdflatex vt-good-image-protocol
       - name: "Uploading PDF"
         uses: actions/upload-artifact@v2
         with:
-          name: my-artifact
+          name: spec
           path: spec/vt-good-image-protocol.pdf
           if-no-files-found: error
 
@@ -46,7 +45,7 @@ jobs:
       - name: "Uploading markdown"
         uses: actions/upload-artifact@v2
         with:
-          name: my-artifact
+          name: spec
           path: spec/vt-good-image-protocol.md
           if-no-files-found: error
 
@@ -60,7 +59,7 @@ jobs:
       - name: fetch release artifacts
         uses: actions/download-artifact@v2
         with:
-          name: my-artifact
+          name: spec
       # -------------------------------------------------------------
       - name: Set Output Variables
         id: set_env_var
