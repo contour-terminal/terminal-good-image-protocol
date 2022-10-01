@@ -60,7 +60,6 @@ While both are ancient and not even widely implemented, newer generations of peo
 to seeing images and even emoji everywhere.
 Those people may eventually touch a virtual terminal emulator and expect it to be no different
 than what they are used to from other software systems.
-\todo{What about Tektronix?}
 
 There is a growing interest in displaying images in todays
 virtual terminal emulators.
@@ -68,9 +67,9 @@ virtual terminal emulators.
 Since these protocols are were not designed with todays needs in mind,
 virtual terminal emulator developers have started implementing their own
 proprietary protocols for displaying images as Sixel and related
-were simply not state of the art anymore.
+protocols were simply not fullfulling today's needs anymore.
 
-While this is positive, it also leads to fragmentation in the ecosystem
+While recent efforts to image protocols are positive, it also leads to fragmentation in the ecosystem
 because application developers do not know what to support in case they intend
 to display images in their client applications, and even new terminal emulator
 developers don't know what protocol to implement.
@@ -78,10 +77,11 @@ developers don't know what protocol to implement.
 There is also a recent resurrection of the Sixel bitmap protocol
 to be implemented by some terminal emulator
 \footnote{Alacritty, Contour, gnome-terminal, iTerm2, wezterm, xterm.js}
-and library \footnote{notcurses} developers,
+and library \footnote{notcurses, libsixel} developers,
 however, none of them is 100\% conforming to how Sixel used to work 50 years ago,
 as there is no easy way to access the hardware they were implemented on
-and also xterm does not implement every aspect of Sixel.
+and also xterm does not implement every aspect of Sixel while existing
+documentation on sixel is also leaving too much room for varying interpretation.
 
 This specification attempts to unify all those image protocols and addresses
 some of the issues, not as a superset, but rather as a largest common denominator,
@@ -111,6 +111,7 @@ Prior art of image protocols for terminals are as follows:
 \begin{itemize}
     \item First appeared in 1970s
     \item Tektronix 4010 series was a family of text-and-graphics computer terminals based on storage-tube technology created by Tektronix.
+    \item implemented by: xterm
 \end{itemize}
 
 \subsection{DEC ReGIS graphics}
@@ -129,7 +130,9 @@ Prior art of image protocols for terminals are as follows:
         that could print 6 pixels in height per line.
     \item Specialized image format optimized for 6-pin printers.
     \item Supports scrolling the screen if the image does not fit the current screen.
-    \item implemented by: xterm, mlterm, wezterm, contour, VTE
+    \item Supports passing different aspect ratio. this is rarely implemented by virtual terminal emulators though.
+    \item Supports endless vertical rendering, e.g. to print seismograph data (rarely implemented by virtual terminal emulators).
+    \item Implemented by: xterm, mlterm, contour, wezterm, vte, possibly others.
 \end{itemize}
 
 This protocol only understands pixels and thus is dependant on the
@@ -143,9 +146,10 @@ Terminology's image protocol is rather a media transport protocol as it
 can also be used to render animations, including videos.
 
 \begin{itemize}
-    \item First appeared in June, 2012.
-    \item Uses VT sequences inspired by Xterm's sequence extensions.
-    \item Specification is in the source code repository's \texttt{README.md} file.
+    \item First appeared in june, 2012.
+    \item Uses vt sequences inspired by xterm's sequence extensions.
+    \item Specification is in the source code repository's \texttt{readme.md} file.
+    \item Implemented by: terminology
 \end{itemize}
 
 \subsection{iTerm2 image protocol}
@@ -158,6 +162,7 @@ can also be used to render animations, including videos.
     \item Image data is Base64 encoded.
     \item Any image format that macOS supports will are supported by iTerm2's image protocol,
         including PDF, PICT, EPS, or any number of bitmap data formats (PNG, GIF, etc.).
+    \item implemented by: iterm, wezterm (partly)
 \end{itemize}
 
 The dependency on macOS for supported image formats makes it a little blurry
@@ -166,9 +171,10 @@ specification also.
 \subsection{DomTerm's inline image support}
 
 \begin{itemize}
-    \item DomTerm's image support appeared in 2016.
-    \item No explicit image protocol but a "insert HTML"-protocol that does support images.
-    \item Specification is in the source code repository's \texttt{README.md} file.
+    \item Domterm's image support appeared in 2016.
+    \item No explicit image protocol but a "insert html"-protocol that does support images.
+    \item Specification is in the source code repository's \texttt{readme.md} file.
+    \item Implemented by: DomTerm
 \end{itemize}
 
 The typical way to insert an image is to insert an HTML <img> element,
@@ -182,6 +188,7 @@ and options to add scrollbars.
 
 The tight integration to the browser makes it hard to be adopted by native
 terminals.
+
 \subsection{Kitty image protocol}
 
 \begin{itemize}
@@ -202,6 +209,7 @@ terminals.
         \end{itemize}
     \item Optionally deletes the local file when requested and the file path is in a secure location.
     \item Hard coded image storage pool to 320 MB (per screen buffer).
+    \item implemented by: kitty, wezterm (partly)
 \end{itemize}
 
 None of the above image protocols are a good candiate. iTerm2's image protocol is very simple and
@@ -228,19 +236,21 @@ without breaking compatibility to existing implementations.
 This section lays down the principles and requirements of \GoodImageProtocol.
 
 \begin{enumerate}
-    \item \textbf{Deterministic emulation} - The image rendering must not be affected by font size
-        or similar properties nor on external API to make productive use of this protocol.
-    \item \textbf{Synchronous operations by default} - No asynchronous operations unless explicitly requested.
-    \item \textbf{Preserve aspect ratio by default}
-    \item \textbf{Remote-terminal capable} - No dependency on the local host, such as the local file system.
-    \item \textbf{Upload and Render seperation} - Image upload must be decoupled from image display
-    \item \textbf{Support for rendering tiles of an image} - Adding the ability to only render tiles
+    \item \textbf{feature detectability} - the image protocol must be easily detectable with well known techniques.
+    \item \textbf{protocol forward-compatibility} - the protocol must be easily extendable in input
+        parameters as well as reusability of the image storage pool
+        (such as icon-display, desktop-notifications, background images).
+    \item \textbf{multiplexer-aware} - multiplexers must be able to fully operate without analyzing the image format.
+        it must be possible to blindingly forward the image data to the outputting terminals.
+    \item \textbf{deterministic emulation} - the image rendering must not be affected by font size
+        or similar properties nor on external api to make productive use of this protocol.
+    \item \textbf{synchronous operations by default} - no asynchronous operations unless explicitly requested.
+    \item \textbf{preserve aspect ratio by default}
+    \item \textbf{remote-terminal capable} - no dependency on the local host, such as the local file system.
+    \item \textbf{upload and render seperation} - image upload must be decoupled from image display
+    \item \textbf{support for rendering tiles of an image} - adding the ability to only render tiles
         of an image greatly assists client applications when only rendering parts of an image is
         needed (such as in multiplexers).
-    \item \textbf{Protocol forward-compatibility} - the protocol must be easily extendable in input
-        parameters as well as reusability of the image storage pool
-        (such as icon-display, desktop-notifications, background images)
-    \item \textbf{Feature detectability} - The image protocol must be easily detectable with well known techniques.
 \end{enumerate}
 
 \paragraph*{}
@@ -280,7 +290,9 @@ Upper limits must be present for security reasons but can be varying by implemen
 % }}}
 \section{Performance Considerations} % {{{
 
-TBD.
+\todo{performance considerations on the backend side as well as rendering}
+
+tbd.
 
 % }}}
 \section{Security Considerations} % {{{
@@ -290,8 +302,8 @@ TBD.
         on how many images can be uploaded at the same time.
         Exceeding the limit will result in evicting ideally older images,
         leading to dangling image fragments, as their related image has been
-        evicted. A placeholder or an empty screen cell will be displayed instead.
-    \item huge image uploads - should be avoidable by limiting the number
+        evicted. A placeholder or an empty screen cell may be displayed instead or no image at all.
+    \item huge image uploads - must be avoidable by limiting the number
         of pixels an image can take.
     \item invalid image uploads - a terminal proxy (such as tmux) do not
         implicitly need to validate image formats as they are usually just
@@ -299,7 +311,7 @@ TBD.
         terminal however will validate implicitly by loading the specified
         file format.
     \item invalid image render requests (such as out of bounds in offsetted-renders) -
-        invalid named images will just not be displayed.
+        invalid named images will not be displayed.
         Overextending dimensions will be displayed but result in cut-of images.
 \end{itemize}
 
@@ -312,8 +324,8 @@ with having the cursor moved, and forget about that one has rendered that
 image, it must also be possible to render the same image multiple times
 in an resource efficient time.
 
-Therefore concept of image display is broken up into multiple parts,
-by separating the image upload from the rendering step, so
+Therefore, the concept of image display is broken up into multiple parts,
+by separating the image upload from rendering, so
 that the same image data can be reused in multiple render commands with
 the choice of either drawing the full image or just parts of it.
 The latter is important for toolkit developers to efficiently redraw
@@ -377,7 +389,7 @@ developers to achieve the same.
 \DA is already used to advertise terminal features, including Sixel graphics, and thus,
 \DA is also used to advertise \GoodImageProtocol support, for consistency.
 
-There is some improved feature detection specification work ongoing,
+There is some improved feature detection specification work ongoing\todo{reference missing},
 so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
 
 % }}}
@@ -389,9 +401,9 @@ the value of the requirement or above, and must be queryable
 
 \begin{itemize}
     \item number of images displayable concurrently (visible or not visible)
-        A recommendation for this limit would be 128 on terminals running on desktop computers.
-    \item number of uncompressed pixels (RGBA8888) an a single image can take at most.
-        A recommendation for this limit would be 8 MB on terminals running on desktop computers.
+        A recommendation for this limit is 128 on terminals running on desktop computers.
+    \item number of bytes an the image data must not exceed in its respective image format.
+    \item maximum width and height for images.
 \end{itemize}
 
 % }}}
@@ -420,7 +432,7 @@ Uploads an image for future render operations.
 
 \subsubsection{Idempotency}
 
-Image upload can be implemented to be idempotent, but don't have to,
+Image upload can be implemented to be idempotent, but doesn't have to,
 i.e. the storage pool keeps an internal hash of each image that is
 automatically constructed upon image upload.
 
@@ -431,30 +443,31 @@ and in case it is a named resource, that one will point to that existing one.
 \subsection{Render Image} % {{{
 
 Renders an image that has been previously uploaded.
-The image will be rendered with the top-left matching the current ANSI cursor position.
+The image will be rendered with the top-left matching the current ansi cursor position.
 The cursor will not be moved by this operation.
 
 \subsubsection*{Parameters}
 
 \begin{tabular}{|l|l|l|}
     \hline
-    \textbf{parameter name} & \textbf{default} & \textbf{description} \\
+    \textbf{parameter name}   & \textbf{default} & \textbf{description} \\
     \hline
-    \textbf{name} &           & unique identifier referencing a previously uploaded image \\
-    \textbf{screen-rows} &    & number of screen cells to render horizontally \\
-    \textbf{screen-cols} &    & number of screen cells to render vertically \\
-    \textbf{resize-policy} & NoResize & optional, mandates how to resize the image within the screen cells \\
-    \textbf{alignment-policy} & MiddleCenter & optional, mandates how to align the image within the screen cells \\
-    \textbf{image-x-offset} & 0 & start rendering at the given pixel x-offset cell of the image \\
-    \textbf{image-y-offset} & 0 & start rendering at the given pixel y-offset cell of the image \\
-    \textbf{image-width}    & screen-rows & optional, number of pixels of the image's width to display \\
-    \textbf{image-height}   & screen-cols & number of pixels of the image's height to display \\
-    \textbf{static-cursor}  & false & optional, tells the terminal to not move the cursor after having the image rendered \\
-    \textbf{status}         & false & request a success/failure status response code from the terminal \\
-        & & If value is true, a response is sent back to the application \\
-        & & to indicate success or failure. \\
-        & & If value is set to false (or parameter is not present), \\
-        & & no response is sent back to the application. \\
+    \textbf{name}             &                  & unique identifier referencing a previously uploaded image \\
+    \textbf{screen-rows}      &                  & number of screen cells to render horizontally \\
+    \textbf{screen-cols}      &                  & number of screen cells to render vertically \\
+    \textbf{screen-layer}     & above            & render image below text (0), replace text (1), above text (2) \\
+    \textbf{resize-policy}    & noresize         & optional, mandates how to resize the image within the screen cells \\
+    \textbf{alignment-policy} & middlecenter     & optional, mandates how to align the image within the screen cells \\
+    \textbf{image-x-offset}   & 0                & start rendering at the given pixel x-offset cell of the image \\
+    \textbf{image-y-offset}   & 0                & start rendering at the given pixel y-offset cell of the image \\
+    \textbf{image-width}      & auto-max         & optional, number of pixels of the image's width to display \\
+    \textbf{image-height}     & auto-max         & number of pixels of the image's height to display \\
+    \textbf{update-cursor}    & false            & optional, tells the terminal to move the text cursor after having the image rendered (image left aligned) below the image \\
+    \textbf{request-status}   & false            & request a success/failure status response code from the terminal \\
+                              &                  & if value is true, a response is sent back to the application \\
+                              &                  & to indicate success or failure. \\
+                              &                  & if value is set to false (or parameter is not present), \\
+                              &                  & no response is sent back to the application. \\
     \hline
 \end{tabular}
 
@@ -463,15 +476,16 @@ The cursor will not be moved by this operation.
 % number of screen cells will be automatically determined.
 
 \paragraph*{}
-If one of the parameters \textbf{screen-width} and \textbf{screen-height} is present and the other is
-missing, the missing one will be automatically determined by preserving the aspect ratio.
+if one of the parameters \textbf{screen-width} and \textbf{screen-height}
+is present and the other is missing, the missing one will be automatically
+determined by preserving the aspect ratio.
 
 \paragraph*{}
-Rendered images that produce a padding due to alignment- and resize-policy will fill the gap with the
-currently active SGR background color.
+Rendered images that produce a padding due to alignment- and resize-policy
+will fill the gap with the currently active sgr background color.
 
 \paragraph*{}
-Reverse video mode mode (\code{DECSCNM}) will affect the padding color but not the image.
+Reverse video mode mode (\code{decscnm}) will affect the padding color but not the image.
 
 \subsubsection*{Resize Policy}
 
@@ -530,21 +544,30 @@ The cursor will not be moved by this operation.
     \hline
     \textbf{parameter name} & \textbf{default} & \textbf{description} \\
     \hline
-    \textbf{format} & & a value that determines the image format. See section \ref{sec:supported-image-formtats} \\
-    \textbf{data} & & image data in the given input format \\
-    \textbf{image-width} & 0 & number of pixels of the image's width to display \\
-    \textbf{image-height} & 0 & number of pixels of the image's height to display \\
-    \textbf{resize-policy} & NoResize & mandates how to resize the image within the screen cells \\
-    \textbf{alignment-policy} & MiddleCenter & mandates how to align the image within the screen cells \\
-    \textbf{screen-width} & & number of screen cells to render horizontally \\
-    \textbf{screen-height} & & number of screen cells to render vertically \\
-    \textbf{auto-scroll} & & boolean, indicating whether or not the page is beign scrolled up \\
-            & & if the image would not fit otherwise \\
+    \textbf{screen-rows}      &                  & number of screen cells to render horizontally \\
+    \textbf{screen-cols}      &                  & number of screen cells to render vertically \\
+    \textbf{resize-policy}    & noresize         & optional, mandates how to resize the image within the screen cells \\
+    \textbf{alignment-policy} & middlecenter     & optional, mandates how to align the image within the screen cells \\
+    \textbf{image-x-offset}   & 0                & start rendering at the given pixel x-offset cell of the image \\
+    \textbf{image-y-offset}   & 0                & start rendering at the given pixel y-offset cell of the image \\
+    \textbf{image-format}     &                  & a value that determines the image format. \\
+                              &                  & see section \ref{sec:supported-image-formtats} for available image formats \\
+    \textbf{image-width}      & auto-max         & optional, number of pixels of the image's width to display \\
+    \textbf{image-height}     & auto-max         & number of pixels of the image's height to display \\
+    \textbf{image-data}       &                  & image data in the specified input format \\
+    \textbf{update-cursor}    & false            & optional, tells the terminal to move the text cursor after having the image rendered (image left aligned) below the image \\
+    \textbf{auto-scroll}      &                  & boolean, indicating whether or not the page is beign scrolled up \\
+                              &                  & if the image would not fit otherwise \\
     \hline
 \end{tabular}
 
-\todo{Specify how auto-scroll can be achieved in primary screen for Render and Upload-and-Render actions.}
-\todo{Should auto-scroll be only possible in primary screen?}
+\todo{specify how auto-scroll can be achieved in primary screen for render and upload-and-render actions.}
+
+\paragraph{*}
+in primary screen, if rendering the image would render below the main page area,
+the screen is scrolled up accordingly to ensure the bottom of the image can still be seen.
+this may cause the top of the image to be moved into the scrollback area
+if the image to be rendered is larger than the main page's line count.
 
 % }}}
 \subsection{Release Image} % {{{
@@ -553,13 +576,13 @@ Removes the mapping of the name to the image in a storage pool.
 This will cause decrementing the use-count of the previously uploaded image.
 Existing rendered images are not affected by this operation.
 
-\subsubsection*{Parameters}
+\subsubsection*{parameters}
 
 \begin{tabular}{|l|l|l|}
     \hline
     \textbf{parameter name} & \textbf{default} & \textbf{description} \\
     \hline
-    \textbf{name}       & & a unique identifier of the uploaded image \\
+    \textbf{name}           &                  & the unique identifier of the uploaded image. \\
     \hline
 \end{tabular}
 
@@ -594,10 +617,8 @@ the prior referenced image.
 When no screen cell is holding a reference to the image,
 the corresponding reference counter should be either 1 (if uploaded in a separate step)
 or 0 (if uploaded within the render instruction).
-% ^^^ does this make sense to be mentioned here?
-% a named image upload initializes the blob ref count to 1 (for the named reference)
-% whereas the blob also has a refcount of 1 when oneshotting,
-% because the one reference comes from the image-display action.
+
+When the reference count gets down to zero, the image can be safely evicted.
 
 Releasing the image by its name will remove the name-to-image association, and thus,
 decrement its reference counter.
@@ -606,14 +627,19 @@ Uploading a new image with an already used name will first release the old name-
 as mentioned earlier and then register the new image with its name. This will not cause
 any visible side effects - existing image fragments to the old image will not be touched.
 
-
 % }}}
 \subsection{Interoperability with other VT sequences} % {{{
 
-Text and images are mutually exclusive objects, and therefore,
-a screen cell either holds text or an image, but not both.
+The rendered image can either replace any existing text on the rendered
+screen cells, render below or render above of the screen's text.
 
-This property makes image cells compatible to all cell operational VT sequences.
+To retain interop with all existing screen buffer mutating sequences,
+any image fragments being associated to a screen cell are strongly bound
+to that cell, e.g. when this cell is being moved to the right, the associated
+image fragemnt will move to the right, too.
+
+VT sequences that are designed to delete text, will also delete any
+associated image fragment data in this screen cell as well.
 
 \subsubsection*{Cursor and margin}
 
@@ -632,13 +658,11 @@ and others will split the image in two halfs.
 
 \subsubsection*{Screen cell characters and image tiles}
 
-Image fragments and characters in a screen cell are mutually exclusive.
-Therefore, when an image is being rendered into a screen cell,
-it is replacing textual information.
+Image fragments can be rendered above text, below text, or replace text.
 
-Analogous, when a character is placed into a screen cell that previously
-contained an image fragment, this image fragment is being replaced by the
-character.
+Analogous, when an image is placed into a screen cell that currently holds
+an image fragement that is meeant to replace text,
+that text will replace the image fragment as well.
 
 \subsubsection*{Image alpha channel and graphics rendition background color}
 
@@ -654,30 +678,23 @@ hyperlinked, analogous to how hyperlinks are applied to text.
 
 \subsubsection*{Text reflow}
 
-Text reflow is supported only inconsistently across a few terminals. Therefore this
-specification does not attempt to address this for images.
-Therefore image cells behave just like text cells,
-potentially wrapping on shrink and eventually merging back when regrown.
+Text reflow is supported only inconsistently across a few terminals.
+Therefore this specification does not attempt to address this for images.
+Image cells behave just like text cells, potentially wrapping on shrink
+and eventually merging back when regrown.
 
 When text reflow is going to be formally specified it must then also address images.
 
 \subsubsection*{Clearing the screen}
 
 VT sequences (such as \code{CSI Ps J}) that reset at least the textual contents
-of the screen cells will, because of the mutual exclusion stated above, also
-clear their image fragment referencing an underlying image,
+of the screen cells will also clear their image fragment referencing an underlying image,
 possibly also releasing the underlying image(s) from the image storage pool
 when their reference count has reached zero.
 
 \subsubsection*{Primary and alternate screen}
 
 Alternate screen and primary screen maintain both a shared image storage pool.
-
-When leaving the alternate screen, all image cells are getting cleared at the
-same time in order to reduce resource pressure at the earliest point possible.
-
-This is different from text and SGR attributes, which will be cleared when
-entering the alternate buffer.
 
 % }}}
 
@@ -702,7 +719,7 @@ The basic format is as follows:
 \subsection{Message Format} % {{{
 
 This message format helps sending arbitrary parametrized messages
-as payload and issuitable for \code{DCS} and \code{OSC} payloads.
+as payload and is suitable for \code{DCS} and \code{OSC} payloads.
 
 The message format is inspired by and trivialized as basic HTTP message like
 format with the following basic rules:
@@ -713,7 +730,7 @@ format with the following basic rules:
     \item Header entries are seperated by \code{,}.
     \item Header name and value is seperated by \code{=}.
     \item Duplicate header names will override the previousely declared ones.
-    \item header value and body can be optionally Base64 encoded by prepending \\
+    \item Header value and message body can be optionally Base64 encoded by prepending \\
         an exclamation mark (\code{!}) at the beginning of the header's value or body.
     \item superfluous commas in header seperation are ignored
     \item header names without a value reflect a boolean truth value,
@@ -750,6 +767,13 @@ Especially the message body might be useful to extend the limit for.
 \end{itemize}
 
 % }}}
+\subsection{Feature Detection} % {{{
+
+Syntax: \DA
+
+\DA's response code for detecting support for an implementation of this specification is \code{11}.
+
+% }}}
 \subsection{Upload Image} % {{{
 
 Syntax: \code{OSC 314 ; u ; <message> ST}
@@ -763,10 +787,10 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
     \hline
     \textbf{header name}   & \textbf{title}   & \textbf{notes} \\
     \hline
-    \textbf{f}       & format & enum (see section \ref{sec:supported-image-formtats}) \\
-    \textbf{w}       & width & number of image width of the uploaded image (not needed for PNG) \\
-    \textbf{h}       & height & number of image height of the uploaded image (not needed for PNG) \\
-    \textbf{n}       & name & unique name of the image \\
+    \textbf{n}             & name             & unique name of the image \\
+    \textbf{W}             & width            & number of image width of the uploaded image (not needed for PNG) \\
+    \textbf{H}             & height           & number of image height of the uploaded image (not needed for PNG) \\
+    \textbf{F}             & format           & enum (see section \ref{sec:supported-image-formtats}) \\
     \hline
 \end{tabular}
 
@@ -778,11 +802,11 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
 
 \begin{verbatim}
     # Shell function demonstrating how to upload an image:
-    function send_image() {
-        local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
+    function gip_upload() {
+        local ImageId=$(echo -ne "org.yourdomain.yourtool.$1" | base64 -)
         local ImageData=$(base64 "$2")
         local ImageFormat=3 # 3=PNG
-        echo -ne "\033Puf=${ImageFormat},n=${ImageId};!${ImageData}\033\\"
+        echo -ne "\033P314;u;F=${ImageFormat},n=${ImageId};!${ImageData}\033\\"
     }
 \end{verbatim}
 
@@ -799,21 +823,24 @@ Syntax: \code{OSC 314 ; r ; <message> ST}
     \hline
     \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
-    n & name            & image Id as string \\
-    c & screen-cols     & number of columns this image will be printed on \\
-    r & screen-rows     & number of rows the image will be printed on \\
-    x & image-x-offset  & x-offset into the referenced image in screen coordinates \\
-    y & image-x-offset  & y-offset into the referenced image in screen coordinates \\
-    w & image-width     & width of the referenced image in screen coordinates \\
-    h & image-height    & height of the referenced image in screen coordinates \\
-    z & resize-policy   & one of: \\ % TODO: defaults should have the lowest value (=> 1)
-      &                 & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
-    a & alignment-policy & one of: \\
-      &                 & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
-      &                 & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
-      &                 & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
-    t & static-cursor   & boolean indicating to not move the cursor \\
-    s & status          & one of: 1 (request status response), 0 otherwise \\
+    \textbf{n} & name             & image Id as string \\
+    \textbf{z} & screen-layer     & Render image below text (0), replace text (1), above text (2) \\
+    \textbf{L} & screen-left      & screen column of the image's left (if not given, the current ANSI text cursor location is used) \\
+    \textbf{T} & screen-top       & screen row of the image's top (if not given, the current ANSI text cursor location is used) \\
+    \textbf{c} & screen-cols      & number of columns this image will be printed on \\
+    \textbf{r} & screen-rows      & number of rows the image will be printed on \\
+    \textbf{x} & image-x-offset   & x-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{y} & image-y-offset   & y-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{w} & image-width      & width of the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{h} & image-height     & height of the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{R} & resize-policy    & one of: \\ % TODO: defaults should have the lowest value (=> 1)
+               &                  & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
+    \textbf{a} & alignment-policy & one of: \\
+               &                  & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
+               &                  & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
+               &                  & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    \textbf{t} & update-cursor    & boolean indicating to move the ANSI text cursor \\
+    \textbf{s} & status           & one of: 1 (request status response), 0 otherwise (default) \\
     \hline
 \end{tabular}
 
@@ -835,11 +862,11 @@ When a response status code was requested, the syntax will be as follows:
 \begin{verbatim}
     # Shell function demonstrating how to render an image:
     function render_image() {
-        # Rendering the given PNG image at the current cursor position with a 20x10 size.
+        # Rendering the given image at the current cursor position with a 20x10 size.
         local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
-        local ScreenWidth="20"
-        local ScreenHeight="10"
-        echo -ne "\033P1:${ScreenWidth};2:${ScreenHeight}rid=${ImageId}\033\\"
+        local ScreenColumns="20"
+        local ScreenLines="10"
+        echo -ne "\033P314;r;1;c=${ScreenColumns};r=:${ScreenLines}n=${ImageId}\033\\"
     }
 \end{verbatim}
 
@@ -852,17 +879,29 @@ Syntax: \code{OSC 314 ; s ; <payload> ST}
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    \textbf{parameter name}   & \textbf{Key} & \textbf{Value} \\
+    \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
-    fmt         & 1   & enum (see section \ref{sec:supported-image-formtats}) \\
-    screen-width  & 2   & UInt32 \\
-    screen-height & 3   & UInt32 \\
-    image-width & 4   & UInt32 \\
-    image-height& 5   & UInt32 \\
-    resize      & 6   & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
-    alignment   & 7   & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
-                &     & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
-                &     & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    \textbf{W} & width            & number of image width of the uploaded image (not needed for PNG) \\
+    \textbf{H} & height           & number of image height of the uploaded image (not needed for PNG) \\
+    \textbf{F} & format           & enum (see section \ref{sec:supported-image-formtats}) \\
+    \hline
+    \textbf{z} & screen-layer     & Render image below text (0), replace text (1), above text (2) \\
+    \textbf{L} & screen-left      & screen column of the image's left (if not given, the current ANSI text cursor location is used) \\
+    \textbf{T} & screen-top       & screen row of the image's top (if not given, the current ANSI text cursor location is used) \\
+    \textbf{c} & screen-cols      & number of columns this image will be printed on \\
+    \textbf{r} & screen-rows      & number of rows the image will be printed on \\
+    \textbf{x} & image-x-offset   & x-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{y} & image-y-offset   & y-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{w} & image-width      & width of the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{h} & image-height     & height of the referenced image in screen coordinates (used to render only parts of the image) \\
+    \textbf{R} & resize-policy    & one of: \\ % TODO: defaults should have the lowest value (=> 1)
+               &                  & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
+    \textbf{a} & alignment-policy & one of: \\
+               &                  & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
+               &                  & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
+               &                  & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
+    \textbf{t} & update-cursor    & boolean indicating to move the ANSI text cursor \\
+    \textbf{s} & status           & one of: 1 (request status response), 0 otherwise \\
     \hline
 \end{tabular}
 
@@ -874,10 +913,10 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
     # Shell function demonstrating how to render a oneshot image:
     function send_image_once() {
         local ImageData=$(base64 "$1")
-        local ImageFormat=3 # 3=PNG
+        local ImageFormat="png"
         local GridWidth="20"
         local GridHeight="10"
-        echo -ne "\033P1:${ImageFormat};2:${GridWidth};3:${GridHeight}s${ImageData}\033\\"
+        echo -ne "\033P314;s;F:${ImageFormat};c:${GridWidth};r:${GridHeight}s${ImageData}\033\\"
     }
 \end{verbatim}
 
@@ -890,18 +929,11 @@ Syntax: \code{OSC 314 ; d ; <message> ST}
 
 \begin{tabular}{ |c|c|l| }
     \hline
-    \textbf{parameter name}   & \textbf{Value} \\
+    \textbf{header name}   & \textbf{title}   & \textbf{notes} \\
     \hline
-    Id          & String \\
+    \textbf{n}             & name             & unique name of the image \\
     \hline
 \end{tabular}
-
-% }}}
-\subsection{Feature Detection} % {{{
-
-Syntax: \DA
-
-\DA's response code for detecting support for an implementation of this specification is \code{11}.
 
 % }}}
 % }}}
@@ -910,10 +942,13 @@ Syntax: \DA
 \label{sec:supported-image-formtats}
 
 \begin{tabular}{c | c | l}
-    File Format & Identifier & Description \\ \hline
-    RGB         & 1          & raw RGB data with each color component being of size 1 byte. \\
-    RGBA        & 2          & raw RGBA data, just like RGB, but with an alpha channel. \\
-    PNG         & 3          & PNG file format \\
+    File Format & Identifier     & Description \\
+    \hline
+    RGB         & \code{rgb}     & raw RGB data with each color component being of size 1 byte. \\
+    RGBA        & \code{rgba}    & raw RGBA data, just like RGB, but with an alpha channel. \\
+    PNG         & \code{png}     & PNG file format \\
+    Sixel       & \code{sixel}   & Payload is given in sixel encoding. \\
+    \hline
 \end{tabular}
 
 \todo{I think it make sense to use mimetype as values instead?}
@@ -931,7 +966,6 @@ Possible future modifications could (but do not have to) cover:
     \item Different transport encodings (other than Base64).
     \item Extending the use of uploaded images to also be used for application / window / tab icons.
     \item Extending the use of uploaded images to terminal background.
-    \item Extending Image-Render with a z-axis to optional render on top or below text.
 \end{itemize}
 
 % }}}
