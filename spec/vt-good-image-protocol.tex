@@ -56,7 +56,7 @@ a standardization proposal}
 \section{Motivation} % {{{
 
 For many decades Sixel and ReGIS have been the only image protocols for terminal emulators.
-While both are ancient and not even widely implemented, newer generations of people are used
+While both are ancient and not even widely implemented, now people are used
 to seeing images and even emoji everywhere.
 Those people may eventually touch a virtual terminal emulator and expect it to be no different
 than what they are used to from other software systems.
@@ -125,12 +125,12 @@ Prior art of image protocols for terminals are as follows:
 \subsection{Sixel graphics}
 
 \begin{itemize}
-    \item Sixel grpahics first appeared in LA50 dot-matrix printers (1983) and short after in the VT240 in Oktober 1983.
+    \item Sixel grpahics first appeared in LA50 dot-matrix printers (1983) and short after in the VT240 in October 1983.
     \item It is pixel based and positions the graphics cursor in a way it is most optimal for dot printers,
         that could print 6 pixels in height per line.
     \item Specialized image format optimized for 6-pin printers.
     \item Supports scrolling the screen if the image does not fit the current screen.
-    \item Supports passing different aspect ratio. this is rarely implemented by virtual terminal emulators though.
+    \item Supports passing different aspect ratio. This is rarely implemented by virtual terminal emulators though.
     \item Supports endless vertical rendering, e.g. to print seismograph data (rarely implemented by virtual terminal emulators).
     \item Implemented by: xterm, mlterm, contour, wezterm, vte, possibly others.
 \end{itemize}
@@ -160,7 +160,7 @@ can also be used to render animations, including videos.
     \item Image display size can be pixel based as well as cell based.
     \item Also has the ability to address the width and height relative to the terminal window size.
     \item Image data is Base64 encoded.
-    \item Any image format that macOS supports will are supported by iTerm2's image protocol,
+    \item Any image format that macOS supports is supported by iTerm2's image protocol,
         including PDF, PICT, EPS, or any number of bitmap data formats (PNG, GIF, etc.).
     \item implemented by: iterm, wezterm (partly)
 \end{itemize}
@@ -177,7 +177,7 @@ specification also.
     \item Implemented by: DomTerm
 \end{itemize}
 
-The typical way to insert an image is to insert an HTML <img> element,
+The typical way to insert an image is to insert an HTML \texttt{<img>} element,
 with the src attribute using a data: URL scheme,
 with the actual data inline as base64.
 
@@ -413,7 +413,7 @@ Uploads an image for future render operations.
 
 \subsubsection*{Parameters}
 
-\begin{tabular}{|l|l|l|}
+\begin{tabular}{|m{3cm}|m{12cm}|}
   \hline
   \textbf{parameter name} & \textbf{description} \\
   \hline
@@ -448,7 +448,7 @@ The cursor will not be moved by this operation.
 
 \subsubsection*{Parameters}
 
-\begin{tabular}{|l|l|l|}
+\begin{tabular}{|m{3cm}|m{2cm}|m{10cm}|}
     \hline
     \textbf{parameter name}   & \textbf{default} & \textbf{description} \\
     \hline
@@ -540,7 +540,7 @@ The cursor will not be moved by this operation.
 
 \subsubsection*{Parameters}
 
-\begin{tabular}{|l|l|l|}
+\begin{tabular}{|m{3cm}|m{2cm}|m{11cm}|}
     \hline
     \textbf{parameter name} & \textbf{default} & \textbf{description} \\
     \hline
@@ -783,7 +783,7 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
 
 \subsubsection*{Parameters}
 
-\begin{tabular}{ |l|l|l| }
+\begin{tabular}{|m{3cm}|m{2cm}|m{11cm}|}
     \hline
     \textbf{header name}   & \textbf{title}   & \textbf{notes} \\
     \hline
@@ -819,7 +819,7 @@ Syntax: \code{OSC 314 ; r ; <message> ST}
 
 \subsubsection*{Message parameters}
 
-\begin{tabular}{ |r|l|l| }
+\begin{tabular}{|m{3cm}|m{2cm}|m{11cm}|}
     \hline
     \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
@@ -877,7 +877,7 @@ Syntax: \code{OSC 314 ; s ; <payload> ST}
 
 \subsubsection*{Numerical parameters}
 
-\begin{tabular}{ |c|c|l| }
+\begin{tabular}{|m{3cm}|m{2cm}|m{11cm}|}
     \hline
     \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
