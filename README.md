@@ -26,6 +26,36 @@ terminal applications.
 - [ ] CLI tool for `cat`ing images onto the screen (a shell script should be sufficient).
 - [ ] CLI tool for testing the feature availability (could be integrated in the above tool with a `--test` flag)
 
+## Protocol Synopsis
+
+The protocol uses **DCS** (Device Control String) sequences with a single-character operation identifier:
+
+| Operation      | Sequence                    | Description                          |
+|----------------|-----------------------------|--------------------------------------|
+| Upload         | `DCS u <message> ST`        | Upload an image to the storage pool  |
+| Render         | `DCS r <message> ST`        | Render a previously uploaded image   |
+| Upload+Render  | `DCS s <message> ST`        | Upload and render in one step        |
+| Release        | `DCS d <message> ST`        | Release a named image from the pool  |
+
+**Feature detection:** DA1 response code `11`.
+
+**Image formats:** `1` (RGB), `2` (RGBA), `3` (PNG).
+
+**Quick example (bash):**
+
+```bash
+# Upload a PNG image named "logo"
+echo -ne "\033Pun=logo,f=3;!$(base64 logo.png)\033\\"
+
+# Render it in a 20x10 cell grid
+echo -ne "\033Prn=logo,c=20,r=10\033\\"
+
+# Release it
+echo -ne "\033Pdn=logo\033\\"
+```
+
+See the [spec document](spec/vt-good-image-protocol.tex) for the full specification.
+
 ## FAQ
 
 - **Why LaTeX and not Markdown?** Expressivity and the fact that you can convert to Markdown: https://pandoc.org/demos.html
