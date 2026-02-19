@@ -703,18 +703,19 @@ Alternate screen and primary screen maintain both a shared image storage pool.
 
 This section maps each semantic action to actual VT sequences.
 
-Each command is using the \code{OSC} protocol with an embedded message as
-described below.
+Each command uses the \code{DCS} (Device Control String) protocol with an embedded message.
+The final character of the \code{DCS} introducer identifies the operation:
 
-In order to stay consistent to already existing \code{OSC}'s,
-the image commands below also reserve a numeric identifier the uniquely
-identify the message.
-
-The basic format is as follows:
-
-\code{OSC 314 ; <payload> ST}
-
-\todo{Unfinished text...}
+\begin{tabular}{ |c|l|l| }
+    \hline
+    \textbf{Final} & \textbf{Operation} & \textbf{Sequence} \\
+    \hline
+    \code{u} & Upload          & \code{DCS u <message> ST} \\
+    \code{r} & Render          & \code{DCS r <message> ST} \\
+    \code{s} & Upload+Render   & \code{DCS s <message> ST} \\
+    \code{d} & Release         & \code{DCS d <message> ST} \\
+    \hline
+\end{tabular}
 
 \subsection{Message Format} % {{{
 
@@ -776,9 +777,9 @@ Syntax: \DA
 % }}}
 \subsection{Upload Image} % {{{
 
-Syntax: \code{OSC 314 ; u ; <message> ST}
+Syntax: \code{DCS u <message> ST}
 
-The payload's format is mandated by the \code{fmt}'s value. However, since it must not contain
+The payload's format is mandated by the \code{f}'s value. However, since it must not contain
 any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
 
 \subsubsection*{Parameters}
@@ -788,9 +789,9 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
     \textbf{header name}   & \textbf{title}   & \textbf{notes} \\
     \hline
     \textbf{n}             & name             & unique name of the image \\
-    \textbf{W}             & width            & number of image width of the uploaded image (not needed for PNG) \\
-    \textbf{H}             & height           & number of image height of the uploaded image (not needed for PNG) \\
-    \textbf{F}             & format           & enum (see section \ref{sec:supported-image-formtats}) \\
+    \textbf{w}             & width            & pixel width of the uploaded image (not needed for PNG) \\
+    \textbf{h}             & height           & pixel height of the uploaded image (not needed for PNG) \\
+    \textbf{f}             & format           & 1 (RGB), 2 (RGBA), 3 (PNG) \\
     \hline
 \end{tabular}
 
@@ -801,12 +802,11 @@ The message body contains the image data.
 This is a small Bash shell example that is uploading a PNG image with a fixed ID.
 
 \begin{verbatim}
-    # Shell function demonstrating how to upload an image:
+    # Shell function demonstrating how to upload a PNG image:
     function gip_upload() {
-        local ImageId=$(echo -ne "org.yourdomain.yourtool.$1" | base64 -)
+        local Name="$1"
         local ImageData=$(base64 "$2")
-        local ImageFormat=3 # 3=PNG
-        echo -ne "\033P314;u;F=${ImageFormat},n=${ImageId};!${ImageData}\033\\"
+        echo -ne "\033Pun=${Name},f=3;!${ImageData}\033\\"
     }
 \end{verbatim}
 
@@ -815,7 +815,7 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
 % }}}
 \subsection{Render Image} % {{{
 
-Syntax: \code{OSC 314 ; r ; <message> ST}
+Syntax: \code{DCS r <message> ST}
 
 \subsubsection*{Message parameters}
 
@@ -823,24 +823,18 @@ Syntax: \code{OSC 314 ; r ; <message> ST}
     \hline
     \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
-    \textbf{n} & name             & image Id as string \\
-    \textbf{z} & screen-layer     & Render image below text (0), replace text (1), above text (2) \\
-    \textbf{L} & screen-left      & screen column of the image's left (if not given, the current ANSI text cursor location is used) \\
-    \textbf{T} & screen-top       & screen row of the image's top (if not given, the current ANSI text cursor location is used) \\
-    \textbf{c} & screen-cols      & number of columns this image will be printed on \\
+    \textbf{n} & name             & unique name referencing a previously uploaded image \\
     \textbf{r} & screen-rows      & number of rows the image will be printed on \\
-    \textbf{x} & image-x-offset   & x-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{y} & image-y-offset   & y-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{w} & image-width      & width of the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{h} & image-height     & height of the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{R} & resize-policy    & one of: \\ % TODO: defaults should have the lowest value (=> 1)
-               &                  & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
-    \textbf{a} & alignment-policy & one of: \\
-               &                  & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
-               &                  & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
-               &                  & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
-    \textbf{t} & update-cursor    & boolean indicating to move the ANSI text cursor \\
-    \textbf{s} & status           & one of: 1 (request status response), 0 otherwise (default) \\
+    \textbf{c} & screen-cols      & number of columns this image will be printed on \\
+    \textbf{a} & alignment        & alignment policy: 1 (TopStart) -- 9 (BottomEnd) \\
+    \textbf{z} & resize           & resize policy: 0 (NoResize), 1 (ResizeToFit), 2 (ResizeToFill), 3 (StretchToFill) \\
+    \textbf{x} & image-x-offset   & x-offset into the referenced image in screen coordinates \\
+    \textbf{y} & image-y-offset   & y-offset into the referenced image in screen coordinates \\
+    \textbf{w} & image-width      & width of the referenced image in screen coordinates \\
+    \textbf{h} & image-height     & height of the referenced image in screen coordinates \\
+    \textbf{s} & request-status   & boolean flag; if present, a response is sent back \\
+    \textbf{l} & auto-scroll      & boolean flag; if present, page scrolls up if image doesn't fit \\
+    \textbf{L} & screen-layer     & image layer: 0 (Below text), 1 (Replace text, default), 2 (Above text) \\
     \hline
 \end{tabular}
 
@@ -862,46 +856,33 @@ When a response status code was requested, the syntax will be as follows:
 \begin{verbatim}
     # Shell function demonstrating how to render an image:
     function render_image() {
-        # Rendering the given image at the current cursor position with a 20x10 size.
-        local ImageId=$(echo -ne "org.binutils.ls.$1" | base64 -)
+        local Name="$1"
         local ScreenColumns="20"
         local ScreenLines="10"
-        echo -ne "\033P314;r;1;c=${ScreenColumns};r=:${ScreenLines}n=${ImageId}\033\\"
+        echo -ne "\033Prn=${Name},c=${ScreenColumns},r=${ScreenLines}\033\\"
     }
 \end{verbatim}
 
 % }}}
 \subsection{Upload and Render Image} % {{{
 
-Syntax: \code{OSC 314 ; s ; <payload> ST}
+Syntax: \code{DCS s <message> ST}
 
-\subsubsection*{Numerical parameters}
+\subsubsection*{Message parameters}
 
 \begin{tabular}{|m{3cm}|m{2cm}|m{11cm}|}
     \hline
     \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
-    \textbf{W} & width            & number of image width of the uploaded image (not needed for PNG) \\
-    \textbf{H} & height           & number of image height of the uploaded image (not needed for PNG) \\
-    \textbf{F} & format           & enum (see section \ref{sec:supported-image-formtats}) \\
-    \hline
-    \textbf{z} & screen-layer     & Render image below text (0), replace text (1), above text (2) \\
-    \textbf{L} & screen-left      & screen column of the image's left (if not given, the current ANSI text cursor location is used) \\
-    \textbf{T} & screen-top       & screen row of the image's top (if not given, the current ANSI text cursor location is used) \\
-    \textbf{c} & screen-cols      & number of columns this image will be printed on \\
+    \textbf{f} & format           & 1 (RGB), 2 (RGBA), 3 (PNG) \\
+    \textbf{w} & width            & pixel width of the image (not needed for PNG) \\
+    \textbf{h} & height           & pixel height of the image (not needed for PNG) \\
     \textbf{r} & screen-rows      & number of rows the image will be printed on \\
-    \textbf{x} & image-x-offset   & x-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{y} & image-y-offset   & y-offset into the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{w} & image-width      & width of the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{h} & image-height     & height of the referenced image in screen coordinates (used to render only parts of the image) \\
-    \textbf{R} & resize-policy    & one of: \\ % TODO: defaults should have the lowest value (=> 1)
-               &                  & 1 (NoResize), 2 (ResizeToFit), 3 (ResizeToFill), 4 (StretchToFill) \\
-    \textbf{a} & alignment-policy & one of: \\
-               &                  & 1 (MiddleCenter), 2 (MiddleStart), 3 (MiddleEnd), \\
-               &                  & 4 (TopStart), 5 (TopCenter), 6 (TopEnd), \\
-               &                  & 7 (BottomStart), 8 (BottomCenter), 9 (BottomEnd) \\
-    \textbf{t} & update-cursor    & boolean indicating to move the ANSI text cursor \\
-    \textbf{s} & status           & one of: 1 (request status response), 0 otherwise \\
+    \textbf{c} & screen-cols      & number of columns this image will be printed on \\
+    \textbf{a} & alignment        & alignment policy: 1 (TopStart) -- 9 (BottomEnd) \\
+    \textbf{z} & resize           & resize policy: 0 (NoResize), 1 (ResizeToFit), 2 (ResizeToFill), 3 (StretchToFill) \\
+    \textbf{l} & auto-scroll      & boolean flag; if present, page scrolls up if image doesn't fit \\
+    \textbf{L} & screen-layer     & image layer: 0 (Below text), 1 (Replace text, default), 2 (Above text) \\
     \hline
 \end{tabular}
 
@@ -913,17 +894,16 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
     # Shell function demonstrating how to render a oneshot image:
     function send_image_once() {
         local ImageData=$(base64 "$1")
-        local ImageFormat="png"
-        local GridWidth="20"
-        local GridHeight="10"
-        echo -ne "\033P314;s;F:${ImageFormat};c:${GridWidth};r:${GridHeight}s${ImageData}\033\\"
+        local GridCols="20"
+        local GridRows="10"
+        echo -ne "\033Psf=3,c=${GridCols},r=${GridRows};!${ImageData}\033\\"
     }
 \end{verbatim}
 
 % }}}
 \subsection{Release Image} % {{{
 
-Syntax: \code{OSC 314 ; d ; <message> ST}
+Syntax: \code{DCS d <message> ST}
 
 \subsubsection*{Message parameters}
 
@@ -944,14 +924,11 @@ Syntax: \code{OSC 314 ; d ; <message> ST}
 \begin{tabular}{c | c | l}
     File Format & Identifier     & Description \\
     \hline
-    RGB         & \code{rgb}     & raw RGB data with each color component being of size 1 byte. \\
-    RGBA        & \code{rgba}    & raw RGBA data, just like RGB, but with an alpha channel. \\
-    PNG         & \code{png}     & PNG file format \\
-    Sixel       & \code{sixel}   & Payload is given in sixel encoding. \\
+    RGB         & \code{1}       & raw RGB data with each color component being of size 1 byte. \\
+    RGBA        & \code{2}       & raw RGBA data, just like RGB, but with an alpha channel. \\
+    PNG         & \code{3}       & PNG file format. Width and height are extracted from the PNG header. \\
     \hline
 \end{tabular}
-
-\todo{I think it make sense to use mimetype as values instead?}
 
 % }}}
 \section{Future Modifications} % {{{
