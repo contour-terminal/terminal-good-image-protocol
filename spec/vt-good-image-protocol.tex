@@ -97,9 +97,13 @@ across different forums on the topic of a future image protocol.
         its graphics rendition or an image fragment
     \item \textbf{image fragment}; a rectanglular tile of an image that perfectly fits into a screen cell
     \item \textbf{image storage pool}; a backing store for images received for future operations
+    \item \textbf{image layer}; determines how an image fragment relates to the text in the same screen cell:
+        \begin{itemize}
+            \item \textbf{BehindText} (0) --- the image renders behind text, replacing the cell's SGR background
+            \item \textbf{ReplaceText} (1) --- the image replaces the text glyphs (default)
+            \item \textbf{AboveText} (2) --- the image renders above text as an overlay
+        \end{itemize}
 \end{itemize}
-
-\todo{more terminology to add?}
 
 % }}}
 \section{Prior art and current state} % {{{
@@ -290,9 +294,56 @@ Upper limits must be present for security reasons but can be varying by implemen
 % }}}
 \section{Performance Considerations} % {{{
 
-\todo{performance considerations on the backend side as well as rendering}
+This section provides guidance for implementers on achieving good performance.
 
-tbd.
+\begin{itemize}
+    \item \textbf{Base64 decoding} ---
+        Base64 expands payload by approximately 33\%.
+        Implementations should decode incrementally during DCS passthrough
+        rather than buffering the entire encoded body before decoding.
+
+    \item \textbf{Image decoding} ---
+        Decoding compressed formats (such as PNG) is CPU-intensive.
+        Implementations should consider performing decoding off the main parser thread
+        to avoid stalling input processing.
+
+    \item \textbf{Fragment generation} ---
+        Generating per-cell RGBA fragments from the source image can be expensive
+        for large images spanning many cells.
+        Implementations should generate fragments lazily (on demand at render time)
+        rather than eagerly during the render command.
+
+    \item \textbf{GPU texture caching} ---
+        Rasterized image fragments should be cached as GPU textures,
+        keyed by image identity and cell coordinates.
+        Avoid re-uploading unchanged textures every frame.
+
+    \item \textbf{Upload/render separation} ---
+        The two-phase design (upload then render) is intentionally performance-friendly.
+        A single image upload can serve many render commands
+        without retransmitting image data.
+
+    \item \textbf{Reference counting} ---
+        Reference count operations (increment on cell placement, decrement on cell clear)
+        should be O(1) to avoid degradation with large images.
+
+    \item \textbf{Eviction cost} ---
+        Eviction should be O(1) amortized.
+        Both FIFO and LRU are acceptable strategies.
+
+    \item \textbf{Multiplexer forwarding} ---
+        Multiplexers forward DCS sequences verbatim without inspecting image data.
+        This keeps multiplexer overhead constant regardless of image payload size.
+
+    \item \textbf{Batch rendering} ---
+        Terminals with GPU-accelerated rendering should batch image fragment draw calls
+        per frame rather than issuing individual draws per cell.
+
+    \item \textbf{Memory budget} ---
+        The minimum requirement (64 images at 4 MB) implies a 256 MB baseline.
+        Implementations may keep compressed formats (such as PNG) in compressed form
+        until fragment generation to reduce resident memory.
+\end{itemize}
 
 % }}}
 \section{Security Considerations} % {{{
@@ -343,8 +394,9 @@ The link between the name and the uploaded image can be explicitly released,
 and then be reused by other image uploads while prior image uploads to that
 name are preserved.
 
-The image upload does not generate any visible output, but may optionally
-(not by default) reply to the application a success indication.
+The image upload does not generate any visible output.
+If the \textbf{request-status} parameter is set,
+the terminal replies with a status code indicating success or failure.
 
 % }}}
 \subsubsection*{Rendering the image} % {{{
@@ -389,22 +441,27 @@ developers to achieve the same.
 \DA is already used to advertise terminal features, including Sixel graphics, and thus,
 \DA is also used to advertise \GoodImageProtocol support, for consistency.
 
-There is some improved feature detection specification work ongoing\todo{reference missing},
+There is some improved feature detection specification work ongoing,
 so there may be other ways to detect \GoodImageProtocol in the future, when that is ready.
 
 % }}}
 \subsection{Querying Resource Limits} % {{{
 
-Resource limits must be queryable whilest the requirements must be met.
-Every resource requirement also has a limit at exactly
-the value of the requirement or above, and must be queryable
+Resource limits must be queryable. Every resource requirement also has a limit
+at exactly the value of the requirement or above.
+
+The following resource limits are reported:
 
 \begin{itemize}
-    \item number of images displayable concurrently (visible or not visible)
+    \item Maximum number of concurrently stored images (visible or not visible).
         A recommendation for this limit is 128 on terminals running on desktop computers.
-    \item number of bytes an the image data must not exceed in its respective image format.
-    \item maximum width and height for images.
+    \item Maximum bytes per image (uncompressed RGBA).
+    \item Maximum image width in pixels.
+    \item Maximum image height in pixels.
 \end{itemize}
+
+The terminal responds to a query with all resource limits in a single reply.
+See the Syntax section for the query and response sequence format.
 
 % }}}
 \subsection{Upload Image} % {{{
@@ -427,8 +484,23 @@ Uploads an image for future render operations.
                             (only required if this information is not provided
                             inline via the \textbf{data} field) \\
   \textbf{data}           & image data in the specified input format \\
+  \textbf{request-status} & if set, the terminal sends a response indicating success or failure \\
   \hline
 \end{tabular}
+
+\subsubsection{Image Name Constraints}
+
+Image names must consist of ASCII alphanumeric characters (\code{a-z}, \code{A-Z}, \code{0-9})
+and underscores (\code{\_}). Names must be between 1 and 512 characters in length.
+Names that do not conform to these constraints result in the command being silently ignored.
+
+\subsubsection{Data Validation}
+
+For RGB and RGBA formats, the image data size must equal
+\code{width * height * bytes-per-pixel} (3 for RGB, 4 for RGBA).
+If the data size does not match the declared dimensions, the upload is invalid.
+When \textbf{request-status} is set, the terminal responds with error code 2 (invalid image data).
+Otherwise the command is silently ignored.
 
 \subsubsection{Idempotency}
 
@@ -443,8 +515,12 @@ and in case it is a named resource, that one will point to that existing one.
 \subsection{Render Image} % {{{
 
 Renders an image that has been previously uploaded.
-The image will be rendered with the top-left matching the current ansi cursor position.
-The cursor will not be moved by this operation.
+The image is rendered with its top-left corner at the current cursor position.
+Applications should use standard cursor positioning sequences (such as CUP) to place
+the cursor before issuing a render command.
+By default, the cursor is not moved by this operation.
+If the \textbf{update-cursor} parameter is set,
+the cursor is moved to the beginning of the line below the last rendered image row.
 
 \subsubsection*{Parameters}
 
@@ -452,16 +528,20 @@ The cursor will not be moved by this operation.
     \hline
     \textbf{parameter name}   & \textbf{default} & \textbf{description} \\
     \hline
-    \textbf{name}             &                  & unique identifier referencing a previously uploaded image \\
+    \textbf{name}             &                  & unique identifier referencing a previously uploaded image
+                                                    (see Upload Image for naming constraints) \\
     \textbf{screen-rows}      &                  & number of screen cells to render horizontally \\
     \textbf{screen-cols}      &                  & number of screen cells to render vertically \\
-    \textbf{screen-layer}     & above            & render image below text (0), replace text (1), above text (2) \\
+    \textbf{screen-layer}     & ReplaceText      & render layer: BehindText (0), ReplaceText (1, default), AboveText (2) \\
     \textbf{resize-policy}    & noresize         & optional, mandates how to resize the image within the screen cells \\
     \textbf{alignment-policy} & middlecenter     & optional, mandates how to align the image within the screen cells \\
-    \textbf{image-x-offset}   & 0                & start rendering at the given pixel x-offset cell of the image \\
-    \textbf{image-y-offset}   & 0                & start rendering at the given pixel y-offset cell of the image \\
-    \textbf{image-width}      & auto-max         & optional, number of pixels of the image's width to display \\
-    \textbf{image-height}     & auto-max         & number of pixels of the image's height to display \\
+    \textbf{image-x-offset}   & 0                & pixel x-offset into the source image data (default: 0) \\
+    \textbf{image-y-offset}   & 0                & pixel y-offset into the source image data (default: 0) \\
+    \textbf{image-width}      & full width       & width in pixels of the sub-region of the source image to display (default: full image width) \\
+    \textbf{image-height}     & full height      & height in pixels of the sub-region of the source image to display (default: full image height) \\
+    \textbf{auto-scroll}      & false            & boolean, if set and the image would extend below the visible page area,
+                                                    the screen scrolls up to accommodate.
+                                                    Defaults to false (no scrolling; the image is clipped at the bottom margin). \\
     \textbf{update-cursor}    & false            & optional, tells the terminal to move the text cursor after having the image rendered (image left aligned) below the image \\
     \textbf{request-status}   & false            & request a success/failure status response code from the terminal \\
                               &                  & if value is true, a response is sent back to the application \\
@@ -471,14 +551,11 @@ The cursor will not be moved by this operation.
     \hline
 \end{tabular}
 
-% \paragraph*{}
-% If parameter \textbf{screen-width} and \textbf{screen-height} are both omitted (or set to 0), then the
-% number of screen cells will be automatically determined.
-
 \paragraph*{}
-if one of the parameters \textbf{screen-width} and \textbf{screen-height}
-is present and the other is missing, the missing one will be automatically
-determined by preserving the aspect ratio.
+At least one of \textbf{screen-rows} or \textbf{screen-cols} must be specified
+with a value greater than zero. If one is specified and the other is omitted (or zero),
+the missing dimension is automatically determined by preserving the image's aspect ratio.
+If both are omitted or zero, the sequence is invalid and silently ignored.
 
 \paragraph*{}
 Rendered images that produce a padding due to alignment- and resize-policy
@@ -489,40 +566,39 @@ Reverse video mode mode (\code{decscnm}) will affect the padding color but not t
 
 \subsubsection*{Resize Policy}
 
-\begin{tabular}{ |l|l| }
+\begin{tabular}{ |c|l|l| }
     \hline
-    \textbf{Name}          & \textbf{Description} \\
+    \textbf{Value} & \textbf{Name}          & \textbf{Description} \\
     \hline
-    NoResize      & Does not perform any resize, leading to a padding on one or two sides \\
-                  & as mandated by the alignment-policy. \\
-    ResizeToFit   & Resizes the image to fit the specified screen width and height, \\
-                  & leading to a padding on zero or one sides as mandated by the alignment-policy. \\
-    ResizeToFill  & Resizes the image to fill the specified screen width and height, \\
-                  & preserving the aspect ratio, leading to potential clipping depending on the \\
-                  & alignment-policy. \\
-    StretchToFill & Resizes the image to fill the specified screen width and height, \\
-                  & ignoring the aspect ratio, ignoring alignment-policy. \\
+    0 & NoResize      & Does not perform any resize, leading to a padding on one or two sides \\
+      &               & as mandated by the alignment-policy (default). \\
+    1 & ResizeToFit   & Resizes the image to fit the specified screen width and height, \\
+      &               & leading to a padding on zero or one sides as mandated by the alignment-policy. \\
+    2 & ResizeToFill  & Resizes the image to fill the specified screen width and height, \\
+      &               & preserving the aspect ratio, leading to potential clipping depending on the \\
+      &               & alignment-policy. \\
+    3 & StretchToFill & Resizes the image to fill the specified screen width and height, \\
+      &               & ignoring the aspect ratio, ignoring alignment-policy. \\
     \hline
 \end{tabular}
 
 \subsubsection*{Alignment Policy}
 
-\begin{tabular}{ |l|l| }
+\begin{tabular}{ |c|l|l| }
     \hline
-    \textbf{Name}          & \textbf{Description} \\
+    \textbf{Value} & \textbf{Name}          & \textbf{Description} \\
     \hline
-    TopCenter     & The image is aligned vertically on the top and horizontally in the center of the screen. \\
-    TopStart      & The image is aligned vertically on the top and horizontally on the left. \\
-    TopEnd        & The image is aligned vertically on the top and horizontally on the right. \\
+    1 & TopStart      & The image is aligned vertically on the top and horizontally on the left. \\
+    2 & TopCenter     & The image is aligned vertically on the top and horizontally in the center. \\
+    3 & TopEnd        & The image is aligned vertically on the top and horizontally on the right. \\
     \hline
-    MiddleCenter  & The image is aligned vertically and horizontally in the center of the screen. \\
-    MiddleStart   & The image is aligned vertically centered and horizontally on the left. \\
-    MiddleEnd     & The image is aligned vertically centered and horizontally on the right. \\
+    4 & MiddleStart   & The image is aligned vertically centered and horizontally on the left. \\
+    5 & MiddleCenter  & The image is aligned vertically and horizontally in the center (default). \\
+    6 & MiddleEnd     & The image is aligned vertically centered and horizontally on the right. \\
     \hline
-    BottomCenter  & The image is aligned vertically on the bottom and horizontally in the center of
-    the screen. \\
-    BottomStart   & The image is aligned vertically on the bottom and horizontally on the left. \\
-    BottomEnd     & The image is aligned vertically on the bottom and horizontally on the right. \\
+    7 & BottomStart   & The image is aligned vertically on the bottom and horizontally on the left. \\
+    8 & BottomCenter  & The image is aligned vertically on the bottom and horizontally in the center. \\
+    9 & BottomEnd     & The image is aligned vertically on the bottom and horizontally on the right. \\
     \hline
 \end{tabular}
 
@@ -535,8 +611,10 @@ is required and there won't be any way to reference that image after either.
 The parameters of this function is the sum of the image upload and image render parameters excluding the unique
 identifier and excluding sub-rectangle rendering parameters.
 
-The image will be rendered with the top-left matching the current ANSI cursor position.
-The cursor will not be moved by this operation.
+The image is rendered with its top-left corner at the current cursor position.
+By default, the cursor is not moved by this operation.
+If the \textbf{update-cursor} parameter is set,
+the cursor is moved to the beginning of the line below the last rendered image row.
 
 \subsubsection*{Parameters}
 
@@ -548,6 +626,7 @@ The cursor will not be moved by this operation.
     \textbf{screen-cols}      &                  & number of screen cells to render vertically \\
     \textbf{resize-policy}    & noresize         & optional, mandates how to resize the image within the screen cells \\
     \textbf{alignment-policy} & middlecenter     & optional, mandates how to align the image within the screen cells \\
+    \textbf{screen-layer}     & ReplaceText      & render layer: BehindText (0), ReplaceText (1, default), AboveText (2) \\
     \textbf{image-x-offset}   & 0                & start rendering at the given pixel x-offset cell of the image \\
     \textbf{image-y-offset}   & 0                & start rendering at the given pixel y-offset cell of the image \\
     \textbf{image-format}     &                  & a value that determines the image format. \\
@@ -556,18 +635,18 @@ The cursor will not be moved by this operation.
     \textbf{image-height}     & auto-max         & number of pixels of the image's height to display \\
     \textbf{image-data}       &                  & image data in the specified input format \\
     \textbf{update-cursor}    & false            & optional, tells the terminal to move the text cursor after having the image rendered (image left aligned) below the image \\
-    \textbf{auto-scroll}      &                  & boolean, indicating whether or not the page is beign scrolled up \\
-                              &                  & if the image would not fit otherwise \\
+    \textbf{auto-scroll}      & false            & boolean, if set and the image would extend below the visible page area,
+                                                    the screen scrolls up to accommodate.
+                                                    Defaults to false (no scrolling; the image is clipped at the bottom margin). \\
+    \textbf{request-status}   & false            & request a success/failure status response code from the terminal \\
     \hline
 \end{tabular}
 
-\todo{specify how auto-scroll can be achieved in primary screen for render and upload-and-render actions.}
-
-\paragraph{*}
-in primary screen, if rendering the image would render below the main page area,
-the screen is scrolled up accordingly to ensure the bottom of the image can still be seen.
-this may cause the top of the image to be moved into the scrollback area
-if the image to be rendered is larger than the main page's line count.
+Scrolling behavior is governed by the \textbf{auto-scroll} parameter.
+When set to false (the default), the image is clipped at the bottom of the visible page area.
+When set to true, the screen scrolls up as needed to display the full image.
+This may cause the top of the image to move into the scrollback area
+if the image is taller than the page.
 
 % }}}
 \subsection{Release Image} % {{{
@@ -658,11 +737,14 @@ and others will split the image in two halfs.
 
 \subsubsection*{Screen cell characters and image tiles}
 
-Image fragments can be rendered above text, below text, or replace text.
+Image fragments can be rendered in one of three layers:
+BehindText (behind text, replacing the SGR background),
+ReplaceText (replacing text glyphs),
+or AboveText (above text as an overlay).
 
-Analogous, when an image is placed into a screen cell that currently holds
-an image fragement that is meeant to replace text,
-that text will replace the image fragment as well.
+When text is written into a screen cell that currently holds
+an image fragment in the ReplaceText layer,
+the text replaces the image fragment.
 
 \subsubsection*{Image alpha channel and graphics rendition background color}
 
@@ -714,6 +796,7 @@ The final character of the \code{DCS} introducer identifies the operation:
     \code{r} & Render          & \code{DCS r <message> ST} \\
     \code{s} & Upload+Render   & \code{DCS s <message> ST} \\
     \code{d} & Release         & \code{DCS d <message> ST} \\
+    \code{q} & Query           & \code{DCS q ST} \\
     \hline
 \end{tabular}
 
@@ -775,6 +858,29 @@ Syntax: \DA
 \DA's response code for detecting support for an implementation of this specification is \code{11}.
 
 % }}}
+\subsection{Query Resource Limits} % {{{
+
+Syntax: \code{DCS q ST}
+
+The terminal responds with all resource limits in a single reply:
+
+\code{CSI > 8 ; Pm ; Pb ; Pw ; Ph i}
+
+Where:
+
+\begin{tabular}{ |c|l| }
+    \hline
+    \textbf{Parameter} & \textbf{Description} \\
+    \hline
+    \code{8}  & response type identifier (distinguishes from render status codes 0--5) \\
+    \code{Pm} & maximum number of concurrently stored images \\
+    \code{Pb} & maximum bytes per image (uncompressed RGBA) \\
+    \code{Pw} & maximum image width in pixels \\
+    \code{Ph} & maximum image height in pixels \\
+    \hline
+\end{tabular}
+
+% }}}
 \subsection{Upload Image} % {{{
 
 Syntax: \code{DCS u <message> ST}
@@ -792,8 +898,25 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
     \textbf{w}             & width            & pixel width of the uploaded image (not needed for PNG) \\
     \textbf{h}             & height           & pixel height of the uploaded image (not needed for PNG) \\
     \textbf{f}             & format           & 1 (RGB), 2 (RGBA), 3 (PNG) \\
+    \textbf{s}             & request-status   & boolean flag; if present, a status response is sent back \\
     \hline
 \end{tabular}
+
+\subsubsection*{Response Sequence}
+
+When the \textbf{request-status} flag is set, the terminal responds with one of the following:
+
+\begin{tabular}{ |r|l| }
+    \hline
+    \textbf{VT sequence} & \textbf{description} \\
+    \hline
+    \code{CSI > 0 i} & Image uploaded successfully \\
+    \code{CSI > 2 i} & Upload failed: invalid image data (bad format, corrupt data, dimension mismatch) \\
+    \code{CSI > 3 i} & Upload failed: resource limit exceeded (image too large or storage full after eviction) \\
+    \hline
+\end{tabular}
+
+\paragraph*{}
 
 The message body contains the image data.
 
@@ -828,26 +951,31 @@ Syntax: \code{DCS r <message> ST}
     \textbf{c} & screen-cols      & number of columns this image will be printed on \\
     \textbf{a} & alignment        & alignment policy: 1 (TopStart) -- 9 (BottomEnd) \\
     \textbf{z} & resize           & resize policy: 0 (NoResize), 1 (ResizeToFit), 2 (ResizeToFill), 3 (StretchToFill) \\
-    \textbf{x} & image-x-offset   & x-offset into the referenced image in screen coordinates \\
-    \textbf{y} & image-y-offset   & y-offset into the referenced image in screen coordinates \\
-    \textbf{w} & image-width      & width of the referenced image in screen coordinates \\
-    \textbf{h} & image-height     & height of the referenced image in screen coordinates \\
+    \textbf{x} & image-x-offset   & pixel x-offset into the source image (default: 0) \\
+    \textbf{y} & image-y-offset   & pixel y-offset into the source image (default: 0) \\
+    \textbf{w} & image-width      & pixel width of the source image sub-region to display (default: full width) \\
+    \textbf{h} & image-height     & pixel height of the source image sub-region to display (default: full height) \\
+    \textbf{u} & update-cursor    & boolean flag; if present, moves cursor below the rendered image area \\
     \textbf{s} & request-status   & boolean flag; if present, a response is sent back \\
     \textbf{l} & auto-scroll      & boolean flag; if present, page scrolls up if image doesn't fit \\
-    \textbf{L} & screen-layer     & image layer: 0 (Below text), 1 (Replace text, default), 2 (Above text) \\
+    \textbf{L} & screen-layer     & image layer: 0 (BehindText), 1 (ReplaceText, default), 2 (AboveText) \\
     \hline
 \end{tabular}
 
 \subsubsection*{Response Sequence}
 
-When a response status code was requested, the syntax will be as follows:
+When a response status code was requested, the syntax will be as follows.
+This table consolidates all response codes used across Upload, Render, and Query operations:
 
-\begin{tabular}{ |r|l| }
+\begin{tabular}{ |c|r|l| }
     \hline
-    \textbf{VT sequence} & \textbf{description} \\
+    \textbf{Code} & \textbf{VT sequence} & \textbf{description} \\
     \hline
-    \code{CSI > 0 i} & Image is rendered successfully \\
-    \code{CSI > 1 i} & Image was not rendered. No image with the given Id found. \\
+    0 & \code{CSI > 0 i} & Operation completed successfully \\
+    1 & \code{CSI > 1 i} & Render failed: no image with the given name found \\
+    2 & \code{CSI > 2 i} & Upload failed: invalid image data \\
+    3 & \code{CSI > 3 i} & Upload failed: resource limit exceeded \\
+    8 & \code{CSI > 8 ; ... i} & Resource limit query response (see Query Resource Limits) \\
     \hline
 \end{tabular}
 
@@ -881,8 +1009,10 @@ Syntax: \code{DCS s <message> ST}
     \textbf{c} & screen-cols      & number of columns this image will be printed on \\
     \textbf{a} & alignment        & alignment policy: 1 (TopStart) -- 9 (BottomEnd) \\
     \textbf{z} & resize           & resize policy: 0 (NoResize), 1 (ResizeToFit), 2 (ResizeToFill), 3 (StretchToFill) \\
+    \textbf{u} & update-cursor    & boolean flag; if present, moves cursor below the rendered image area \\
+    \textbf{s} & request-status   & boolean flag; if present, a response is sent back \\
     \textbf{l} & auto-scroll      & boolean flag; if present, page scrolls up if image doesn't fit \\
-    \textbf{L} & screen-layer     & image layer: 0 (Below text), 1 (Replace text, default), 2 (Above text) \\
+    \textbf{L} & screen-layer     & image layer: 0 (BehindText), 1 (ReplaceText, default), 2 (AboveText) \\
     \hline
 \end{tabular}
 
@@ -963,7 +1093,6 @@ Possible future modifications could (but do not have to) cover:
 
 \begin{itemize}
     \item Maybe use tables instead of lists for parameter listings?
-    \item Should we mention how to deal with HiDPI displays and content scaling?
     \item How to implement a cat-like tool for images without breaking determinism for proxy
         terminals (like tmux).
         I.e. how does the proxy terminal know about how many rows will be used when
@@ -973,11 +1102,6 @@ Possible future modifications could (but do not have to) cover:
         the image dimensions and calculates a maybe perfect number of rows
         based on that and the retrieved pixel height (which is not recommended though).
     \item Do we want to deal with transparent pixels differently?
-    \item Is it \textbf{really} necessary to be able to render above/below text with preserving the
-        text? What is the real use case for that? (that would require the introduction of a z-axis).
-    \item If so, can images be layered, therefore can a cell have more than one image.
-        And what is happening if the above image is removed. Will the image below be shown?
-    \item Should SGRs be usable in screen cells showing image fragments?
 \end{itemize}
 
 % }}}
