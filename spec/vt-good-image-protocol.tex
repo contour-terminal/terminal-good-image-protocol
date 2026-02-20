@@ -364,6 +364,10 @@ This section provides guidance for implementers on achieving good performance.
     \item invalid image render requests (such as out of bounds in offsetted-renders) -
         invalid named images will not be displayed.
         Overextending dimensions will be displayed but result in cut-of images.
+    \item excessive render dimensions - terminals should clamp
+        \textbf{screen-rows} and \textbf{screen-cols} to the current page size.
+        Render requests exceeding page dimensions are clipped, not rejected.
+        This prevents resource exhaustion from requests such as \code{r=10000,c=10000}.
 \end{itemize}
 
 % }}}
@@ -519,8 +523,14 @@ The image is rendered with its top-left corner at the current cursor position.
 Applications should use standard cursor positioning sequences (such as CUP) to place
 the cursor before issuing a render command.
 By default, the cursor is not moved by this operation.
+When the cursor is not moved, it remains at the position it occupied
+before the render command. Applications are responsible for repositioning
+the cursor (e.g.\ via CUP) to avoid overwriting rendered image cells with
+subsequent text output.
+
 If the \textbf{update-cursor} parameter is set,
-the cursor is moved to the beginning of the line below the last rendered image row.
+the cursor is moved to column~1 (or the left margin if \code{DECOM} is set)
+of the line immediately below the last rendered image row.
 
 \subsubsection*{Parameters}
 
@@ -530,8 +540,8 @@ the cursor is moved to the beginning of the line below the last rendered image r
     \hline
     \textbf{name}             &                  & unique identifier referencing a previously uploaded image
                                                     (see Upload Image for naming constraints) \\
-    \textbf{screen-rows}      &                  & number of screen cells to render horizontally \\
-    \textbf{screen-cols}      &                  & number of screen cells to render vertically \\
+    \textbf{screen-rows}      &                  & number of screen cells to render vertically \\
+    \textbf{screen-cols}      &                  & number of screen cells to render horizontally \\
     \textbf{screen-layer}     & ReplaceText      & render layer: BehindText (0), ReplaceText (1, default), AboveText (2) \\
     \textbf{resize-policy}    & noresize         & optional, mandates how to resize the image within the screen cells \\
     \textbf{alignment-policy} & middlecenter     & optional, mandates how to align the image within the screen cells \\
@@ -622,13 +632,11 @@ the cursor is moved to the beginning of the line below the last rendered image r
     \hline
     \textbf{parameter name} & \textbf{default} & \textbf{description} \\
     \hline
-    \textbf{screen-rows}      &                  & number of screen cells to render horizontally \\
-    \textbf{screen-cols}      &                  & number of screen cells to render vertically \\
+    \textbf{screen-rows}      &                  & number of screen cells to render vertically \\
+    \textbf{screen-cols}      &                  & number of screen cells to render horizontally \\
     \textbf{resize-policy}    & noresize         & optional, mandates how to resize the image within the screen cells \\
     \textbf{alignment-policy} & middlecenter     & optional, mandates how to align the image within the screen cells \\
     \textbf{screen-layer}     & ReplaceText      & render layer: BehindText (0), ReplaceText (1, default), AboveText (2) \\
-    \textbf{image-x-offset}   & 0                & start rendering at the given pixel x-offset cell of the image \\
-    \textbf{image-y-offset}   & 0                & start rendering at the given pixel y-offset cell of the image \\
     \textbf{image-format}     &                  & a value that determines the image format. \\
                               &                  & see section \ref{sec:supported-image-formtats} for available image formats \\
     \textbf{image-width}      & auto-max         & optional, number of pixels of the image's width to display \\
@@ -642,11 +650,24 @@ the cursor is moved to the beginning of the line below the last rendered image r
     \hline
 \end{tabular}
 
+The dimension rules from Render Image apply: at least one of \textbf{screen-rows}
+or \textbf{screen-cols} must be specified with a value greater than zero.
+If one is specified and the other is omitted (or zero), the missing dimension
+is determined by preserving the image's aspect ratio.
+If both are omitted or zero, the terminal may compute both dimensions
+from the source image pixel size and the current cell pixel size (rounding up).
+If the terminal does not support this, the sequence is silently ignored.
+
 Scrolling behavior is governed by the \textbf{auto-scroll} parameter.
 When set to false (the default), the image is clipped at the bottom of the visible page area.
 When set to true, the screen scrolls up as needed to display the full image.
 This may cause the top of the image to move into the scrollback area
 if the image is taller than the page.
+
+When both \textbf{auto-scroll} and \textbf{update-cursor} are set,
+the cursor is positioned after all scrolling has completed.
+The cursor moves to the beginning of the line below the last rendered
+image row in current screen coordinates.
 
 % }}}
 \subsection{Release Image} % {{{
@@ -682,9 +703,10 @@ that should not in FIFO-order until the new image fits.
 
 If the image is larger than the allowed storage size, the upload will fail.
 
-Evicted images that were still held in screen cells will
-either display a image placeholder or an empty screen cell, neither
-is mandatory and free to chose by the terminal author.
+Images with a reference count greater than zero (i.e.\ with active screen cell references)
+should not be evicted. If eviction of referenced images is unavoidable,
+the terminal displays a placeholder or an empty screen cell for affected fragments;
+neither representation is mandatory and is free to be chosen by the terminal author.
 
 Displaying an image results in incrementing the reference counter
 by the number of screen cells that are holding fragments of the image.
@@ -703,8 +725,9 @@ Releasing the image by its name will remove the name-to-image association, and t
 decrement its reference counter.
 
 Uploading a new image with an already used name will first release the old name-to-image association
-as mentioned earlier and then register the new image with its name. This will not cause
-any visible side effects - existing image fragments to the old image will not be touched.
+as mentioned earlier and then register the new image with its name.
+Existing screen cells continue to display fragments of the previously uploaded image.
+Only new render commands using the name will reference the newly uploaded image.
 
 % }}}
 \subsection{Interoperability with other VT sequences} % {{{
@@ -800,6 +823,19 @@ The final character of the \code{DCS} introducer identifies the operation:
     \hline
 \end{tabular}
 
+These final characters were chosen to avoid conflicts with existing standardized
+DCS sequences.
+Sixel uses \code{DCS} with a numeric parameter and final byte \code{q};
+DECRQSS uses intermediate byte \code{\$} with final byte \code{q}.
+Both are distinguishable because \GoodImageProtocol sequences carry no
+intermediate bytes and no numeric parameters before the final byte.
+
+\paragraph*{Error handling.}
+When a command is described as ``silently ignored'', the terminal must consume
+the entire DCS data stream up to and including the String Terminator (\code{ST})
+before resuming normal parsing.
+No response is sent to the application unless the \textbf{request-status} flag was set.
+
 \subsection{Message Format} % {{{
 
 This message format helps sending arbitrary parametrized messages
@@ -816,6 +852,10 @@ format with the following basic rules:
     \item Duplicate header names will override the previousely declared ones.
     \item Header value and message body can be optionally Base64 encoded by prepending \\
         an exclamation mark (\code{!}) at the beginning of the header's value or body.
+        \textbf{Note:} Message bodies containing binary image data (RGB, RGBA, or PNG)
+        \textbf{must} be Base64-encoded, because raw binary data may contain bytes
+        that would be interpreted as C0 or C1 control characters
+        (e.g. \code{0x1B}, the ESC byte), corrupting the DCS parser state.
     \item superfluous commas in header seperation are ignored
     \item header names without a value reflect a boolean truth value,
         its \code{=} can therefore be omitted.
@@ -897,10 +937,18 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
     \textbf{n}             & name             & unique name of the image \\
     \textbf{w}             & width            & pixel width of the uploaded image (not needed for PNG) \\
     \textbf{h}             & height           & pixel height of the uploaded image (not needed for PNG) \\
-    \textbf{f}             & format           & 1 (RGB), 2 (RGBA), 3 (PNG) \\
+    \textbf{f}             & format           & 1 (RGB), 2 (RGBA), 3 (PNG). Required. \\
     \textbf{s}             & request-status   & boolean flag; if present, a status response is sent back \\
     \hline
 \end{tabular}
+
+\paragraph*{}
+The \textbf{format} parameter (\code{f}) is required.
+If omitted, the command is silently ignored.
+
+An upload command with an empty body (zero bytes of image data) is invalid.
+When \textbf{request-status} is set, the terminal responds with error code~2.
+Otherwise the command is silently ignored.
 
 \subsubsection*{Response Sequence}
 
@@ -1073,6 +1121,9 @@ Possible future modifications could (but do not have to) cover:
     \item Different transport encodings (other than Base64).
     \item Extending the use of uploaded images to also be used for application / window / tab icons.
     \item Extending the use of uploaded images to terminal background.
+    \item A version negotiation mechanism (e.g.\ extended DA response or query response)
+        may be added if protocol extensions require feature detection
+        beyond presence/absence of the \DA code~\code{11}.
 \end{itemize}
 
 % }}}
