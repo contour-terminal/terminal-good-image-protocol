@@ -37,15 +37,15 @@ The protocol uses **DCS** (Device Control String) sequences with a single-charac
 | Upload+Render  | `DCS s <message> ST`        | Upload and render in one step        |
 | Release        | `DCS d <message> ST`        | Release a named image from the pool  |
 
-**Feature detection:** DA1 response code `11`.
+**Feature detection:** DA1 response code `60`.
 
-**Image formats:** `1` (RGB), `2` (RGBA), `3` (PNG).
+**Image formats:** `1` (Auto), `2` (RGB), `3` (RGBA), `4` (PNG).
 
 **Quick example (bash):**
 
 ```bash
 # Upload a PNG image named "logo"
-echo -ne "\033Pun=logo,f=3;!$(base64 logo.png)\033\\"
+echo -ne "\033Pun=logo,f=1;!$(base64 logo.png)\033\\"
 
 # Render it in a 20x10 cell grid
 echo -ne "\033Prn=logo,c=20,r=10\033\\"

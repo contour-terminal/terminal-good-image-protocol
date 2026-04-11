@@ -506,6 +506,11 @@ If the data size does not match the declared dimensions, the upload is invalid.
 When \textbf{request-status} is set, the terminal responds with error code 2 (invalid image data).
 Otherwise the command is silently ignored.
 
+For Auto format, the terminal first attempts to detect a self-describing format
+(such as PNG via its magic bytes). If no known format is detected and width/height
+are provided, the data size is used to determine whether the payload is RGB or RGBA.
+If the format cannot be determined, the data is treated as invalid.
+
 \subsubsection{Idempotency}
 
 Image upload can be implemented to be idempotent, but doesn't have to,
@@ -808,27 +813,36 @@ Alternate screen and primary screen maintain both a shared image storage pool.
 
 This section maps each semantic action to actual VT sequences.
 
-Each command uses the \code{DCS} (Device Control String) protocol with an embedded message.
-The final character of the \code{DCS} introducer identifies the operation:
+All commands use a single \code{DCS} (Device Control String) sequence
+with intermediate byte \code{!} (0x21) and final byte \code{g} (0x67):
+
+\begin{center}
+    \code{DCS ! g <message> ST}
+\end{center}
+
+The operation type is specified via the \code{o} header inside the message:
 
 \begin{tabular}{ |c|l|l| }
     \hline
-    \textbf{Final} & \textbf{Operation} & \textbf{Sequence} \\
+    \textbf{Value of \code{o}} & \textbf{Operation} & \textbf{Example} \\
     \hline
-    \code{u} & Upload          & \code{DCS u <message> ST} \\
-    \code{r} & Render          & \code{DCS r <message> ST} \\
-    \code{s} & Upload+Render   & \code{DCS s <message> ST} \\
-    \code{d} & Release         & \code{DCS d <message> ST} \\
-    \code{q} & Query           & \code{DCS q ST} \\
+    \code{u} & Upload          & \code{DCS ! g o=u,n=img,f=4;!<data> ST} \\
+    \code{r} & Render          & \code{DCS ! g o=r,n=img,r=10,c=20 ST} \\
+    \code{s} & Upload+Render   & \code{DCS ! g o=s,f=1,r=10,c=20;!<data> ST} \\
+    \code{d} & Release         & \code{DCS ! g o=d,n=img ST} \\
+    \code{q} & Query           & \code{DCS ! g o=q ST} \\
     \hline
 \end{tabular}
 
-These final characters were chosen to avoid conflicts with existing standardized
-DCS sequences.
-Sixel uses \code{DCS} with a numeric parameter and final byte \code{q};
-DECRQSS uses intermediate byte \code{\$} with final byte \code{q}.
-Both are distinguishable because \GoodImageProtocol sequences carry no
-intermediate bytes and no numeric parameters before the final byte.
+The two-byte introducer (\code{!g}) avoids conflicts with all known
+\code{DCS} sequences. DCS final bytes are a scarce namespace shared
+across decades of standards; using a single intermediate-plus-final
+combination ensures that the entire protocol consumes exactly one
+\code{DCS} slot and leaves room for future operations without
+allocating additional sequences.
+
+When the \code{o} header is missing or contains an unrecognized value,
+the terminal silently ignores the sequence.
 
 \paragraph*{Error handling.}
 When a command is described as ``silently ignored'', the terminal must consume
@@ -895,35 +909,37 @@ Especially the message body might be useful to extend the limit for.
 
 Syntax: \DA
 
-\DA's response code for detecting support for an implementation of this specification is \code{11}.
+\DA's response code for detecting support for an implementation of this specification is \code{60}.
+Numbers below 50 are avoided to prevent conflicts with existing DA1 extension assignments.
 
 % }}}
 \subsection{Query Resource Limits} % {{{
 
-Syntax: \code{DCS q ST}
+Syntax: \code{DCS ! g o=q ST}
 
-The terminal responds with all resource limits in a single reply:
+The terminal responds with all resource limits in a single reply
+using the same \code{DCS ! g} framing:
 
-\code{CSI > 8 ; Pm ; Pb ; Pw ; Ph i}
+\code{DCS ! g s=8,m=Pm,b=Pb,w=Pw,h=Ph ST}
 
 Where:
 
 \begin{tabular}{ |c|l| }
     \hline
-    \textbf{Parameter} & \textbf{Description} \\
+    \textbf{Header} & \textbf{Description} \\
     \hline
-    \code{8}  & response type identifier (distinguishes from render status codes 0--5) \\
-    \code{Pm} & maximum number of concurrently stored images \\
-    \code{Pb} & maximum bytes per image (uncompressed RGBA) \\
-    \code{Pw} & maximum image width in pixels \\
-    \code{Ph} & maximum image height in pixels \\
+    \code{s=8} & response type identifier (distinguishes from status codes 0--3) \\
+    \code{m}   & maximum number of concurrently stored images \\
+    \code{b}   & maximum bytes per image (uncompressed RGBA) \\
+    \code{w}   & maximum image width in pixels \\
+    \code{h}   & maximum image height in pixels \\
     \hline
 \end{tabular}
 
 % }}}
 \subsection{Upload Image} % {{{
 
-Syntax: \code{DCS u <message> ST}
+Syntax: \code{DCS ! g o=u,<headers>;[body] ST}
 
 The payload's format is mandated by the \code{f}'s value. However, since it must not contain
 any C0 or C1 escape codes, the transport is further protected by encoding it via Base64.
@@ -935,9 +951,9 @@ any C0 or C1 escape codes, the transport is further protected by encoding it via
     \textbf{header name}   & \textbf{title}   & \textbf{notes} \\
     \hline
     \textbf{n}             & name             & unique name of the image \\
-    \textbf{w}             & width            & pixel width of the uploaded image (not needed for PNG) \\
-    \textbf{h}             & height           & pixel height of the uploaded image (not needed for PNG) \\
-    \textbf{f}             & format           & 1 (RGB), 2 (RGBA), 3 (PNG). Required. \\
+    \textbf{w}             & width            & pixel width of the uploaded image (not needed for Auto or PNG) \\
+    \textbf{h}             & height           & pixel height of the uploaded image (not needed for Auto or PNG) \\
+    \textbf{f}             & format           & 1 (Auto), 2 (RGB), 3 (RGBA), 4 (PNG). Required. \\
     \textbf{s}             & request-status   & boolean flag; if present, a status response is sent back \\
     \hline
 \end{tabular}
@@ -958,9 +974,9 @@ When the \textbf{request-status} flag is set, the terminal responds with one of 
     \hline
     \textbf{VT sequence} & \textbf{description} \\
     \hline
-    \code{CSI > 0 i} & Image uploaded successfully \\
-    \code{CSI > 2 i} & Upload failed: invalid image data (bad format, corrupt data, dimension mismatch) \\
-    \code{CSI > 3 i} & Upload failed: resource limit exceeded (image too large or storage full after eviction) \\
+    \code{DCS ! g s=0 ST} & Image uploaded successfully \\
+    \code{DCS ! g s=2 ST} & Upload failed: invalid image data (bad format, corrupt data, dimension mismatch) \\
+    \code{DCS ! g s=3 ST} & Upload failed: resource limit exceeded (image too large or storage full after eviction) \\
     \hline
 \end{tabular}
 
@@ -977,7 +993,7 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
     function gip_upload() {
         local Name="$1"
         local ImageData=$(base64 "$2")
-        echo -ne "\033Pun=${Name},f=3;!${ImageData}\033\\"
+        echo -ne "\033P!go=u,n=${Name},f=1;!${ImageData}\033\\"
     }
 \end{verbatim}
 
@@ -986,7 +1002,7 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
 % }}}
 \subsection{Render Image} % {{{
 
-Syntax: \code{DCS r <message> ST}
+Syntax: \code{DCS ! g o=r,<headers> ST}
 
 \subsubsection*{Message parameters}
 
@@ -1012,18 +1028,19 @@ Syntax: \code{DCS r <message> ST}
 
 \subsubsection*{Response Sequence}
 
-When a response status code was requested, the syntax will be as follows.
-This table consolidates all response codes used across Upload, Render, and Query operations:
+When a response status code was requested, the terminal responds using the same
+\code{DCS ! g} framing. This table consolidates all response codes used across
+Upload, Render, and Query operations:
 
 \begin{tabular}{ |c|r|l| }
     \hline
     \textbf{Code} & \textbf{VT sequence} & \textbf{description} \\
     \hline
-    0 & \code{CSI > 0 i} & Operation completed successfully \\
-    1 & \code{CSI > 1 i} & Render failed: no image with the given name found \\
-    2 & \code{CSI > 2 i} & Upload failed: invalid image data \\
-    3 & \code{CSI > 3 i} & Upload failed: resource limit exceeded \\
-    8 & \code{CSI > 8 ; ... i} & Resource limit query response (see Query Resource Limits) \\
+    0 & \code{DCS ! g s=0 ST} & Operation completed successfully \\
+    1 & \code{DCS ! g s=1 ST} & Render failed: no image with the given name found \\
+    2 & \code{DCS ! g s=2 ST} & Upload failed: invalid image data \\
+    3 & \code{DCS ! g s=3 ST} & Upload failed: resource limit exceeded \\
+    8 & \code{DCS ! g s=8,m=...,b=...,w=...,h=... ST} & Resource limit query response (see Query Resource Limits) \\
     \hline
 \end{tabular}
 
@@ -1035,14 +1052,14 @@ This table consolidates all response codes used across Upload, Render, and Query
         local Name="$1"
         local ScreenColumns="20"
         local ScreenLines="10"
-        echo -ne "\033Prn=${Name},c=${ScreenColumns},r=${ScreenLines}\033\\"
+        echo -ne "\033P!go=r,n=${Name},c=${ScreenColumns},r=${ScreenLines}\033\\"
     }
 \end{verbatim}
 
 % }}}
 \subsection{Upload and Render Image} % {{{
 
-Syntax: \code{DCS s <message> ST}
+Syntax: \code{DCS ! g o=s,<headers>;[body] ST}
 
 \subsubsection*{Message parameters}
 
@@ -1050,9 +1067,9 @@ Syntax: \code{DCS s <message> ST}
     \hline
     \textbf{message header}   & \textbf{title}   & \textbf{Value} \\
     \hline
-    \textbf{f} & format           & 1 (RGB), 2 (RGBA), 3 (PNG) \\
-    \textbf{w} & width            & pixel width of the image (not needed for PNG) \\
-    \textbf{h} & height           & pixel height of the image (not needed for PNG) \\
+    \textbf{f} & format           & 1 (Auto), 2 (RGB), 3 (RGBA), 4 (PNG) \\
+    \textbf{w} & width            & pixel width of the image (not needed for Auto or PNG) \\
+    \textbf{h} & height           & pixel height of the image (not needed for Auto or PNG) \\
     \textbf{r} & screen-rows      & number of rows the image will be printed on \\
     \textbf{c} & screen-cols      & number of columns this image will be printed on \\
     \textbf{a} & alignment        & alignment policy: 1 (TopStart) -- 9 (BottomEnd) \\
@@ -1074,14 +1091,14 @@ This is a small Bash shell example that is uploading a PNG image with a fixed ID
         local ImageData=$(base64 "$1")
         local GridCols="20"
         local GridRows="10"
-        echo -ne "\033Psf=3,c=${GridCols},r=${GridRows};!${ImageData}\033\\"
+        echo -ne "\033P!go=s,f=1,c=${GridCols},r=${GridRows};!${ImageData}\033\\"
     }
 \end{verbatim}
 
 % }}}
 \subsection{Release Image} % {{{
 
-Syntax: \code{DCS d <message> ST}
+Syntax: \code{DCS ! g o=d,<headers> ST}
 
 \subsubsection*{Message parameters}
 
@@ -1102,11 +1119,23 @@ Syntax: \code{DCS d <message> ST}
 \begin{tabular}{c | c | l}
     File Format & Identifier     & Description \\
     \hline
-    RGB         & \code{1}       & raw RGB data with each color component being of size 1 byte. \\
-    RGBA        & \code{2}       & raw RGBA data, just like RGB, but with an alpha channel. \\
-    PNG         & \code{3}       & PNG file format. Width and height are extracted from the PNG header. \\
+    Auto        & \code{1}       & Automatic format detection from file headers / magic bytes and data size. \\
+    RGB         & \code{2}       & raw RGB data with each color component being of size 1 byte. \\
+    RGBA        & \code{3}       & raw RGBA data, just like RGB, but with an alpha channel. \\
+    PNG         & \code{4}       & PNG file format. Width and height are extracted from the PNG header. \\
     \hline
 \end{tabular}
+
+\paragraph*{Auto Format Detection}
+
+When the format is set to Auto (\code{1}), the terminal detects the actual image format
+from the data itself.
+PNG data is identified by its magic bytes (the first 8 bytes: \code{89 50 4E 47 0D 0A 1A 0A});
+width and height are extracted from the PNG header.
+For raw pixel data, width and height must be provided, and the data size determines
+whether the format is RGB (\code{width * height * 3}) or RGBA (\code{width * height * 4}).
+If the format cannot be determined, the data is invalid.
+Implementations may extend Auto to support additional self-describing formats in the future.
 
 % }}}
 \section{Future Modifications} % {{{
@@ -1123,7 +1152,7 @@ Possible future modifications could (but do not have to) cover:
     \item Extending the use of uploaded images to terminal background.
     \item A version negotiation mechanism (e.g.\ extended DA response or query response)
         may be added if protocol extensions require feature detection
-        beyond presence/absence of the \DA code~\code{11}.
+        beyond presence/absence of the \DA code~\code{60}.
 \end{itemize}
 
 % }}}
