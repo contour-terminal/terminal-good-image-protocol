@@ -37,7 +37,7 @@ The protocol uses **DCS** (Device Control String) sequences with a single-charac
 | Upload+Render  | `DCS s <message> ST`        | Upload and render in one step        |
 | Release        | `DCS d <message> ST`        | Release a named image from the pool  |
 
-**Feature detection:** DA1 response code `60`.
+**Feature detection:** DA1 response code `90`.
 
 **Image formats:** `1` (Auto), `2` (RGB), `3` (RGBA), `4` (PNG).
 
